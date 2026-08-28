@@ -1,0 +1,254 @@
+from datetime import date
+from typing import List, Optional
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+)
+
+from sqlalchemy.orm import Session
+
+from app.database.session import get_db
+
+from app.models.user import User
+
+from app.schemas.document_schema import (
+    DocumentCreate,
+    DocumentUpdate,
+    DocumentResponse,
+)
+
+from app.security.dependencies import (
+    get_current_user,
+)
+
+from app.services.document_service import (
+    document_service,
+)
+
+
+router = APIRouter(
+    prefix="/documents",
+    tags=["Documents"],
+)
+
+
+# ============================================================
+# CREER UN DOCUMENT
+# ============================================================
+
+@router.post(
+    "/",
+    response_model=DocumentResponse,
+)
+def create_document(
+    document: DocumentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+
+    return document_service.create(
+        db,
+        document,
+        current_user,
+    )
+
+
+# ============================================================
+# RECHERCHE AVANCEE
+# IMPORTANT : AVANT /{document_id}
+# ============================================================
+
+@router.get(
+    "/search",
+    response_model=List[DocumentResponse],
+)
+def search_documents(
+    reference_archive: Optional[str] = Query(
+        default=None
+    ),
+
+    nom_document: Optional[str] = Query(
+        default=None
+    ),
+
+    code_foncier: Optional[str] = Query(
+        default=None
+    ),
+
+    numero_ordre: Optional[str] = Query(
+        default=None
+    ),
+
+    type_document_id: Optional[int] = Query(
+        default=None
+    ),
+
+    phase_id: Optional[int] = Query(
+        default=None
+    ),
+
+    circonscription_id: Optional[int] = Query(
+        default=None
+    ),
+
+    date_debut: Optional[date] = Query(
+        default=None
+    ),
+
+    date_fin: Optional[date] = Query(
+        default=None
+    ),
+
+    db: Session = Depends(get_db),
+
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+
+    if (
+        date_debut
+        and date_fin
+        and date_debut > date_fin
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "La date de début ne peut pas "
+                "être supérieure à la date de fin."
+            ),
+        )
+
+    return document_service.search(
+        db=db,
+        reference_archive=reference_archive,
+        nom_document=nom_document,
+        code_foncier=code_foncier,
+        numero_ordre=numero_ordre,
+        type_document_id=type_document_id,
+        phase_id=phase_id,
+        circonscription_id=circonscription_id,
+        date_debut=date_debut,
+        date_fin=date_fin,
+    )
+
+
+# ============================================================
+# LISTE DES DOCUMENTS
+# ============================================================
+
+@router.get(
+    "/",
+    response_model=List[DocumentResponse],
+)
+def list_documents(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+
+    return document_service.get_all(
+        db
+    )
+
+
+# ============================================================
+# DOCUMENT PAR ID
+# ============================================================
+
+@router.get(
+    "/{document_id}",
+    response_model=DocumentResponse,
+)
+def get_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+
+    document = document_service.get_by_id(
+        db,
+        document_id,
+    )
+
+    if not document:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Document introuvable",
+        )
+
+    return document
+
+
+# ============================================================
+# MODIFIER
+# ============================================================
+
+@router.put(
+    "/{document_id}",
+    response_model=DocumentResponse,
+)
+def update_document(
+    document_id: int,
+    data: DocumentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+
+    document = document_service.update(
+        db,
+        document_id,
+        data,
+    )
+
+    if not document:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Document introuvable",
+        )
+
+    return document
+
+
+# ============================================================
+# SUPPRIMER
+# ============================================================
+
+@router.delete(
+    "/{document_id}",
+)
+def delete_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+
+    success = document_service.delete(
+        db,
+        document_id,
+    )
+
+    if not success:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Document introuvable",
+        )
+
+    return {
+        "message": "Document supprimé"
+    }

@@ -1,0 +1,375 @@
+.recherche-page {
+    padding: 28px 30px 40px;
+    min-height: 100%;
+    background: #f4f7fa;
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.recherche-header {
+    margin-bottom: 24px;
+}
+
+.recherche-header h1 {
+    margin: 0;
+    color: #123b59;
+    font-size: 30px;
+    font-weight: 700;
+}
+
+.recherche-header p {
+    margin: 6px 0 0;
+    color: #6b7c8d;
+    font-size: 14px;
+}
+
+/* ============================================================
+   ALERT
+============================================================ */
+
+.recherche-alert {
+    margin-bottom: 20px;
+    padding: 13px 16px;
+    border-radius: 8px;
+    background: #fff0f0;
+    border: 1px solid #ffd0d0;
+    color: #b42318;
+    font-size: 14px;
+}
+
+/* ============================================================
+   CARD
+============================================================ */
+
+.recherche-card {
+    margin-bottom: 20px;
+    overflow: hidden;
+    background: white;
+    border: 1px solid #e2e9ef;
+    border-radius: 11px;
+}
+
+.recherche-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 15px;
+    padding: 20px 22px;
+    border-bottom: 1px solid #e8edf1;
+}
+
+.recherche-card-header h2 {
+    margin: 0;
+    color: #193f58;
+    font-size: 18px;
+}
+
+.recherche-card-header p {
+    margin: 5px 0 0;
+    color: #8493a0;
+    font-size: 12px;
+}
+
+.recherche-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 9px;
+    background: #edf6fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+}
+
+/* ============================================================
+   FORMULAIRE
+============================================================ */
+
+.recherche-form {
+    padding: 24px 22px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}
+
+.recherche-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.recherche-field label {
+    margin-bottom: 7px;
+    color: #344f61;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.recherche-field input,
+.recherche-field select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 12px;
+    border: 1px solid #d5dfe6;
+    border-radius: 7px;
+    outline: none;
+    background: white;
+    color: #263f4f;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.recherche-field input:focus,
+.recherche-field select:focus {
+    border-color: #1681aa;
+    box-shadow: 0 0 0 3px rgba(22, 129, 170, 0.1);
+}
+
+.recherche-field input::placeholder {
+    color: #a0adb7;
+}
+
+/* ============================================================
+   ACTIONS
+============================================================ */
+
+.recherche-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 20px;
+    margin-top: 4px;
+    border-top: 1px solid #e7edf1;
+}
+
+.recherche-reset {
+    padding: 11px 18px;
+    border: 1px solid #d3dce4;
+    border-radius: 8px;
+    background: white;
+    color: #52616f;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.recherche-reset:hover {
+    background: #f7f9fb;
+}
+
+.recherche-submit {
+    padding: 11px 20px;
+    border: none;
+    border-radius: 8px;
+    background: #006b98;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.recherche-submit:hover {
+    background: #00577d;
+}
+
+.recherche-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   RESULTATS
+============================================================ */
+
+.results-card {
+    overflow: hidden;
+}
+
+.recherche-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.recherche-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.recherche-table th {
+    padding: 13px 16px;
+    background: #f7f9fb;
+    border-bottom: 1px solid #e3e9ee;
+    color: #607484;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.recherche-table td {
+    padding: 15px 16px;
+    border-bottom: 1px solid #edf1f4;
+    color: #4e6271;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+.recherche-table tbody tr:hover {
+    background: #fafcfd;
+}
+
+.recherche-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.recherche-table td strong {
+    display: block;
+    color: #203e52;
+    font-size: 13px;
+}
+
+.recherche-table td small {
+    display: block;
+    margin-top: 4px;
+    color: #8797a4;
+    font-size: 11px;
+}
+
+/* ============================================================
+   REFERENCE
+============================================================ */
+
+.recherche-reference {
+    color: #12638a;
+    font-family: monospace;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* ============================================================
+   BADGES
+============================================================ */
+
+.recherche-badge {
+    display: inline-block;
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.recherche-badge.blue {
+    background: #eaf5fb;
+    color: #09658d;
+}
+
+.recherche-badge.green {
+    background: #edf8f1;
+    color: #25734e;
+}
+
+/* ============================================================
+   EMPTY
+============================================================ */
+
+.recherche-empty {
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.recherche-empty-icon {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 12px;
+    border-radius: 50%;
+    background: #edf6fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 27px;
+}
+
+.recherche-empty h3 {
+    margin: 0 0 5px;
+    color: #27465a;
+}
+
+.recherche-empty p {
+    margin: 0;
+    color: #8493a0;
+    font-size: 13px;
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 800px) {
+
+    .recherche-form {
+        grid-template-columns: 1fr;
+    }
+
+    .recherche-actions {
+        grid-column: auto;
+    }
+
+}
+
+@media (max-width: 600px) {
+
+    .recherche-page {
+        padding: 20px 15px;
+    }
+
+    .recherche-card-header {
+        padding: 17px;
+    }
+
+    .recherche-form {
+        padding: 18px;
+    }
+
+    .recherche-actions {
+        flex-direction: column;
+    }
+
+    .recherche-reset,
+    .recherche-submit {
+        width: 100%;
+    }
+
+}
+
+/* ============================================================
+   ACTION CONSULTATION
+============================================================ */
+
+.recherche-view-button {
+    width: 34px;
+    height: 34px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 1px solid #dce4ea;
+    border-radius: 6px;
+
+    background: white;
+
+    cursor: pointer;
+
+    font-size: 15px;
+}
+
+.recherche-view-button:hover {
+    background: #edf7fb;
+    border-color: #c7dce5;
+}

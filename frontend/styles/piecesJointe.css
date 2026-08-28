@@ -1,0 +1,524 @@
+.attachments-page {
+    padding: 28px 30px 40px;
+    min-height: 100%;
+    background: #f4f7fa;
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.attachments-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.attachments-header h1 {
+    margin: 0;
+    font-size: 30px;
+    color: #123b59;
+    font-weight: 700;
+}
+
+.attachments-header p {
+    margin: 6px 0 0;
+    color: #6b7c8d;
+    font-size: 14px;
+}
+
+/* ============================================================
+   BUTTON
+============================================================ */
+
+.btn-refresh {
+    border: 1px solid #d7e0e7;
+    background: white;
+    color: #356078;
+    border-radius: 7px;
+    padding: 9px 14px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-refresh:hover {
+    background: #f4f8fa;
+}
+
+/* ============================================================
+   ALERTS
+============================================================ */
+
+.alert {
+    padding: 13px 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.alert-error {
+    background: #fff0f0;
+    color: #b42318;
+    border: 1px solid #ffd0d0;
+}
+
+.alert-success {
+    background: #eefbf4;
+    color: #18794e;
+    border: 1px solid #c6efd9;
+}
+
+/* ============================================================
+   STATISTIQUES
+============================================================ */
+
+.attachment-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.attachment-stat-card {
+    background: white;
+    border: 1px solid #e3eaf0;
+    border-radius: 10px;
+    padding: 18px;
+
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 9px;
+    background: #e9f5fa;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 21px;
+}
+
+.attachment-stat-card span {
+    display: block;
+    color: #718292;
+    font-size: 12px;
+    margin-bottom: 5px;
+}
+
+.attachment-stat-card strong {
+    display: block;
+    font-size: 24px;
+    color: #173d57;
+}
+
+/* ============================================================
+   FILTRES
+============================================================ */
+
+.attachments-filters {
+    background: white;
+    border: 1px solid #e2e9ef;
+    border-radius: 11px;
+    padding: 16px;
+    margin-bottom: 18px;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.attachment-search {
+    flex: 1;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    border: 1px solid #d5dfe6;
+    border-radius: 7px;
+    background: white;
+
+    padding: 0 12px;
+}
+
+.attachment-search span {
+    color: #718292;
+}
+
+.attachment-search input {
+    width: 100%;
+    border: none;
+    outline: none;
+
+    padding: 11px 0;
+
+    font-family: inherit;
+    font-size: 13px;
+    color: #263f4f;
+}
+
+.attachments-filters select {
+    border: 1px solid #d5dfe6;
+    border-radius: 7px;
+
+    padding: 10px 12px;
+
+    background: white;
+    color: #354f60;
+
+    font-family: inherit;
+    font-size: 13px;
+}
+
+/* ============================================================
+   CARD
+============================================================ */
+
+.attachments-card {
+    background: white;
+    border: 1px solid #e2e9ef;
+    border-radius: 11px;
+    overflow: hidden;
+}
+
+.attachments-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    padding: 20px 22px;
+
+    border-bottom: 1px solid #e8edf1;
+}
+
+.attachments-card-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #193f58;
+}
+
+.attachments-card-header span {
+    display: block;
+    margin-top: 4px;
+    color: #8493a0;
+    font-size: 12px;
+}
+
+/* ============================================================
+   TABLE
+============================================================ */
+
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.attachments-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.attachments-table th {
+    background: #f7f9fb;
+    color: #607484;
+
+    text-align: left;
+
+    font-size: 12px;
+    font-weight: 700;
+
+    padding: 13px 16px;
+
+    border-bottom: 1px solid #e3e9ee;
+
+    white-space: nowrap;
+}
+
+.attachments-table td {
+    padding: 15px 16px;
+
+    border-bottom: 1px solid #edf1f4;
+
+    color: #4e6271;
+
+    font-size: 13px;
+
+    vertical-align: middle;
+}
+
+.attachments-table tbody tr:hover {
+    background: #fafcfd;
+}
+
+/* ============================================================
+   FICHIER
+============================================================ */
+
+.attachment-file {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+
+.file-icon {
+    width: 38px;
+    height: 38px;
+
+    border-radius: 8px;
+
+    background: #edf6fa;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 18px;
+}
+
+.attachment-file strong {
+    display: block;
+
+    max-width: 280px;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    color: #203e52;
+    font-size: 13px;
+}
+
+.attachment-file small {
+    display: block;
+
+    max-width: 280px;
+
+    margin-top: 4px;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    color: #8797a4;
+
+    font-size: 10px;
+}
+
+/* ============================================================
+   DOCUMENT
+============================================================ */
+
+.attachment-document strong {
+    display: block;
+    color: #203e52;
+    font-size: 13px;
+}
+
+.attachment-document small {
+    display: block;
+    margin-top: 4px;
+    color: #8797a4;
+    font-size: 11px;
+}
+
+.attachment-reference {
+    font-family: monospace;
+    color: #12638a;
+    font-weight: 600;
+    font-size: 11px;
+}
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+.file-type-badge {
+    display: inline-block;
+
+    padding: 5px 8px;
+
+    border-radius: 5px;
+
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.file-type-pdf {
+    background: #fff0f0;
+    color: #b42318;
+}
+
+.file-type-image {
+    background: #eef7ff;
+    color: #1769aa;
+}
+
+.file-type-word {
+    background: #edf4ff;
+    color: #315ea8;
+}
+
+.file-type-excel {
+    background: #edf8f1;
+    color: #25734e;
+}
+
+.file-type-autre {
+    background: #f2f4f6;
+    color: #5f6f7a;
+}
+
+/* ============================================================
+   ACTIONS
+============================================================ */
+
+.attachment-actions {
+    display: flex;
+    gap: 7px;
+}
+
+.attachment-actions button {
+    width: 32px;
+    height: 32px;
+
+    border-radius: 6px;
+
+    border: 1px solid #dce4ea;
+
+    background: white;
+
+    cursor: pointer;
+}
+
+.btn-attachment-open:hover {
+    background: #edf7fb;
+}
+
+.btn-attachment-delete:hover {
+    background: #fff0f0;
+}
+
+.attachment-actions button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   EMPTY / LOADING
+============================================================ */
+
+.attachments-loading,
+.attachments-empty {
+    min-height: 300px;
+
+    display: flex;
+    flex-direction: column;
+
+    align-items: center;
+    justify-content: center;
+
+    text-align: center;
+}
+
+.attachments-empty h3 {
+    margin: 12px 0 5px;
+    color: #27465a;
+}
+
+.attachments-empty p {
+    color: #8493a0;
+    margin: 0;
+    font-size: 13px;
+}
+
+.empty-icon {
+    width: 60px;
+    height: 60px;
+
+    border-radius: 50%;
+
+    background: #edf6fa;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 27px;
+}
+
+.spinner {
+    width: 30px;
+    height: 30px;
+
+    border: 3px solid #dcebf1;
+    border-top-color: #006b98;
+
+    border-radius: 50%;
+
+    animation: attachment-spin 0.8s linear infinite;
+}
+
+.attachments-loading p {
+    color: #738493;
+    font-size: 13px;
+}
+
+@keyframes attachment-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 1000px) {
+
+    .attachment-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+}
+
+@media (max-width: 700px) {
+
+    .attachments-page {
+        padding: 20px 15px;
+    }
+
+    .attachments-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .attachments-header .btn-refresh {
+        width: 100%;
+    }
+
+    .attachment-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .attachments-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .attachment-search {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .attachments-filters select {
+        width: 100%;
+    }
+
+}

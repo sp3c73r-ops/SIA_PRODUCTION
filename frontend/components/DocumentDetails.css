@@ -1,0 +1,529 @@
+/* ============================================================
+   OVERLAY
+============================================================ */
+
+.detail-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 38, 52, 0.52);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 25px;
+
+    z-index: 2000;
+}
+
+
+/* ============================================================
+   MODAL
+============================================================ */
+
+.document-detail-modal {
+    width: min(900px, 100%);
+    max-height: 90vh;
+
+    background: white;
+
+    border-radius: 12px;
+
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.22);
+
+    overflow: hidden;
+
+    display: flex;
+    flex-direction: column;
+}
+
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.detail-header {
+    padding: 22px 25px;
+
+    border-bottom: 1px solid #e7edf1;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.detail-header h2 {
+    margin: 0;
+
+    color: #173d57;
+
+    font-size: 22px;
+}
+
+.detail-header p {
+    margin: 5px 0 0;
+
+    color: #83929f;
+
+    font-size: 13px;
+}
+
+.detail-close {
+    width: 35px;
+    height: 35px;
+
+    border: none;
+
+    border-radius: 7px;
+
+    background: #f2f5f7;
+
+    color: #526573;
+
+    font-size: 24px;
+
+    cursor: pointer;
+}
+
+.detail-close:hover {
+    background: #e8eef2;
+}
+
+
+/* ============================================================
+   CONTENT
+============================================================ */
+
+.detail-content {
+    padding: 25px;
+
+    overflow-y: auto;
+}
+
+
+/* ============================================================
+   DOCUMENT TITLE
+============================================================ */
+
+.detail-document-title {
+    display: flex;
+
+    align-items: center;
+
+    gap: 15px;
+
+    padding: 18px;
+
+    margin-bottom: 24px;
+
+    background: #f5f9fb;
+
+    border: 1px solid #e1eaf0;
+
+    border-radius: 9px;
+}
+
+.detail-document-icon {
+    width: 50px;
+    height: 50px;
+
+    border-radius: 10px;
+
+    background: #e4f3f8;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 25px;
+}
+
+.detail-document-title h3 {
+    margin: 0;
+
+    color: #173d57;
+
+    font-size: 17px;
+}
+
+.detail-document-title span {
+    display: block;
+
+    margin-top: 5px;
+
+    color: #12638a;
+
+    font-family: monospace;
+
+    font-size: 12px;
+
+    font-weight: 600;
+}
+
+
+/* ============================================================
+   SECTION
+============================================================ */
+
+.detail-section {
+    margin-bottom: 24px;
+}
+
+.detail-section-title {
+    color: #193f58;
+
+    font-size: 16px;
+
+    font-weight: 700;
+
+    margin-bottom: 14px;
+}
+
+
+/* ============================================================
+   GRID INFORMATIONS
+============================================================ */
+
+.detail-grid {
+    display: grid;
+
+    grid-template-columns: 1fr 1fr;
+
+    gap: 1px;
+
+    background: #e4ebef;
+
+    border: 1px solid #e4ebef;
+
+    border-radius: 8px;
+
+    overflow: hidden;
+}
+
+.detail-field {
+    background: white;
+
+    padding: 14px 15px;
+}
+
+.detail-field span {
+    display: block;
+
+    color: #8493a0;
+
+    font-size: 11px;
+
+    margin-bottom: 5px;
+}
+
+.detail-field strong {
+    display: block;
+
+    color: #28485b;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+    word-break: break-word;
+}
+
+.detail-reference {
+    color: #12638a !important;
+
+    font-family: monospace;
+
+    font-size: 12px !important;
+}
+
+
+/* ============================================================
+   REMARQUE
+============================================================ */
+
+.detail-remark {
+    padding: 15px;
+
+    background: #fafcfd;
+
+    border: 1px solid #e3eaef;
+
+    border-radius: 8px;
+
+    color: #526674;
+
+    font-size: 13px;
+
+    line-height: 1.6;
+
+    min-height: 20px;
+}
+
+
+/* ============================================================
+   PIECES JOINTES HEADER
+============================================================ */
+
+.detail-section-heading {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    margin-bottom: 14px;
+}
+
+.detail-section-heading .detail-section-title {
+    margin-bottom: 0;
+}
+
+.detail-section-heading p {
+    margin: 4px 0 0;
+
+    color: #8493a0;
+
+    font-size: 12px;
+}
+
+.attachment-count {
+    min-width: 30px;
+    height: 30px;
+
+    padding: 0 8px;
+
+    border-radius: 15px;
+
+    background: #e8f5fa;
+
+    color: #09658d;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 12px;
+
+    font-weight: 700;
+}
+
+
+/* ============================================================
+   ATTACHMENTS
+============================================================ */
+
+.attachment-list {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 9px;
+}
+
+.attachment-item {
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 12px 14px;
+
+    border: 1px solid #e1e8ed;
+
+    border-radius: 8px;
+
+    background: white;
+}
+
+.attachment-item:hover {
+    background: #fafcfd;
+}
+
+.attachment-icon {
+    width: 40px;
+    height: 40px;
+
+    border-radius: 7px;
+
+    background: #edf6fa;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 19px;
+
+    flex-shrink: 0;
+}
+
+.attachment-info {
+    flex: 1;
+
+    min-width: 0;
+}
+
+.attachment-info strong {
+    display: block;
+
+    color: #27465a;
+
+    font-size: 13px;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+}
+
+.attachment-info span {
+    display: block;
+
+    margin-top: 4px;
+
+    color: #8797a4;
+
+    font-size: 11px;
+}
+
+.attachment-download {
+    border: 1px solid #d4e0e7;
+
+    background: white;
+
+    color: #12638a;
+
+    border-radius: 6px;
+
+    padding: 8px 13px;
+
+    font-size: 12px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    flex-shrink: 0;
+}
+
+.attachment-download:hover {
+    background: #edf7fb;
+}
+
+.attachment-download:disabled {
+    opacity: 0.6;
+
+    cursor: not-allowed;
+}
+
+
+/* ============================================================
+   EMPTY / LOADING
+============================================================ */
+
+.detail-loading {
+    padding: 30px;
+
+    text-align: center;
+
+    color: #8493a0;
+
+    font-size: 13px;
+}
+
+.detail-empty {
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 20px;
+
+    border: 1px dashed #d9e3e9;
+
+    border-radius: 8px;
+
+    background: #fafcfd;
+}
+
+.detail-empty-icon {
+    width: 40px;
+    height: 40px;
+
+    border-radius: 50%;
+
+    background: #edf6fa;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 18px;
+}
+
+.detail-empty strong {
+    display: block;
+
+    color: #4d6371;
+
+    font-size: 13px;
+}
+
+.detail-empty p {
+    margin: 4px 0 0;
+
+    color: #8998a3;
+
+    font-size: 12px;
+}
+
+
+/* ============================================================
+   FOOTER
+============================================================ */
+
+.detail-footer {
+    padding: 16px 25px;
+
+    border-top: 1px solid #e7edf1;
+
+    display: flex;
+
+    justify-content: flex-end;
+}
+
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 650px) {
+
+    .detail-overlay {
+        padding: 10px;
+    }
+
+    .document-detail-modal {
+        max-height: 95vh;
+    }
+
+    .detail-content {
+        padding: 18px;
+    }
+
+    .detail-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .attachment-item {
+        align-items: flex-start;
+    }
+
+    .attachment-download {
+        padding: 7px 9px;
+    }
+
+}

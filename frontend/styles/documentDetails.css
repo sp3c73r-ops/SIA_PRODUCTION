@@ -1,0 +1,426 @@
+ /* ============================================================
+   MODAL - FICHE DOCUMENT
+============================================================ */
+
+.document-details-modal {
+    width: min(900px, 100%);
+    max-height: 90vh;
+    overflow: hidden;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+}
+
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.document-details-header {
+    padding: 22px 25px;
+    border-bottom: 1px solid #e7edf1;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-shrink: 0;
+}
+
+.document-details-header h2 {
+    margin: 0;
+    color: #173d57;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.document-details-header p {
+    margin: 6px 0 0;
+    color: #83929f;
+    font-size: 13px;
+}
+
+.document-details-close {
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 7px;
+    background: #f2f5f7;
+    color: #526573;
+    font-size: 23px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.document-details-close:hover {
+    background: #e8eef2;
+}
+
+
+/* ============================================================
+   BODY
+============================================================ */
+
+.document-details-body {
+    padding: 22px 25px;
+    overflow-y: auto;
+}
+
+
+/* ============================================================
+   TITRE / IDENTIFICATION
+============================================================ */
+
+.document-details-title {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    background: #f5f9fb;
+    border: 1px solid #e1ebf0;
+    border-radius: 9px;
+    padding: 18px;
+    margin-bottom: 20px;
+}
+
+.document-details-title span,
+.document-detail-item span {
+    display: block;
+    color: #7b8d9a;
+    font-size: 12px;
+    margin-bottom: 6px;
+}
+
+.document-details-title strong {
+    display: block;
+    color: #173d57;
+    font-size: 14px;
+}
+
+
+/* ============================================================
+   GRILLE INFORMATIONS
+============================================================ */
+
+.document-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid #e2e9ee;
+    border-radius: 9px;
+    overflow: hidden;
+    margin-bottom: 24px;
+}
+
+.document-detail-item {
+    padding: 16px;
+    border-bottom: 1px solid #e6edf1;
+}
+
+.document-detail-item:nth-child(odd) {
+    border-right: 1px solid #e6edf1;
+}
+
+.document-detail-item:nth-last-child(-n + 2) {
+    border-bottom: none;
+}
+
+.document-detail-item strong {
+    color: #24536d;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+
+/* ============================================================
+   SECTIONS
+============================================================ */
+
+.document-details-section {
+    margin-top: 22px;
+}
+
+.document-details-section h3 {
+    margin: 0 0 10px;
+    color: #173d57;
+    font-size: 16px;
+}
+
+.document-details-section > p {
+    margin: 0 0 12px;
+    color: #83929f;
+    font-size: 12px;
+}
+
+
+/* ============================================================
+   REMARQUE
+============================================================ */
+
+.document-remarque {
+    padding: 14px 16px;
+    min-height: 45px;
+    box-sizing: border-box;
+    background: #f8fafb;
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+    color: #4d6473;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+
+/* ============================================================
+   TITRE PIECES JOINTES
+============================================================ */
+
+.attachments-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.attachments-title h3 {
+    margin: 0;
+}
+
+.attachments-title p {
+    margin: 4px 0 0;
+    color: #8493a0;
+    font-size: 12px;
+}
+
+.attachments-count {
+    min-width: 30px;
+    height: 30px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    background: #e8f5fa;
+    color: #006b98;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+
+/* ============================================================
+   ERREUR PIECES JOINTES
+============================================================ */
+
+.attachments-error {
+    padding: 11px 14px;
+    margin-bottom: 12px;
+    border-radius: 7px;
+    background: #fff0f0;
+    border: 1px solid #ffd1d1;
+    color: #b42318;
+    font-size: 13px;
+}
+
+
+/* ============================================================
+   CHARGEMENT
+============================================================ */
+
+.attachments-loading {
+    padding: 25px;
+    text-align: center;
+    color: #718292;
+    font-size: 13px;
+    background: #f8fafb;
+    border: 1px solid #e4ebef;
+    border-radius: 8px;
+}
+
+
+/* ============================================================
+   AUCUNE PIECE JOINTE
+============================================================ */
+
+.attachments-empty {
+    padding: 28px 20px;
+    text-align: center;
+    background: #f8fafb;
+    border: 1px dashed #d8e2e8;
+    border-radius: 8px;
+}
+
+.attachments-empty span {
+    display: block;
+    font-size: 25px;
+    margin-bottom: 8px;
+}
+
+.attachments-empty p {
+    margin: 0;
+    color: #8493a0;
+    font-size: 13px;
+}
+
+
+/* ============================================================
+   LISTE PIECES JOINTES
+============================================================ */
+
+.attachments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: #f8fafb;
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+}
+
+.attachment-item:hover {
+    background: #f3f8fa;
+    border-color: #d4e1e7;
+}
+
+
+/* ============================================================
+   ICONE PIECE JOINTE
+============================================================ */
+
+.attachment-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 7px;
+    background: #e8f5fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    flex-shrink: 0;
+}
+
+
+/* ============================================================
+   INFORMATIONS PIECE JOINTE
+============================================================ */
+
+.attachment-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.attachment-info strong {
+    display: block;
+    color: #173d57;
+    font-size: 13px;
+    font-weight: 600;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attachment-info small {
+    display: block;
+    margin-top: 4px;
+    color: #8493a0;
+    font-size: 11px;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+
+/* ============================================================
+   BOUTON OUVRIR
+============================================================ */
+
+.attachment-open-button {
+    border: 1px solid #d4e1e7;
+    background: white;
+    color: #12638a;
+    border-radius: 7px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.attachment-open-button:hover {
+    background: #eaf5f9;
+    border-color: #b9d5df;
+}
+
+.attachment-open-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
+/* ============================================================
+   FOOTER
+============================================================ */
+
+.document-details-footer {
+    padding: 16px 25px;
+    border-top: 1px solid #e7edf1;
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    background: white;
+}
+
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 700px) {
+
+    .document-details-modal {
+        max-height: 94vh;
+    }
+
+    .document-details-body {
+        padding: 18px;
+    }
+
+    .document-details-header {
+        padding: 18px;
+    }
+
+    .document-details-title {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .document-details-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .document-detail-item:nth-child(odd) {
+        border-right: none;
+    }
+
+    .document-detail-item {
+        border-bottom: 1px solid #e6edf1 !important;
+    }
+
+    .document-detail-item:last-child {
+        border-bottom: none !important;
+    }
+
+    .attachment-item {
+        align-items: flex-start;
+    }
+
+    .attachment-open-button {
+        padding: 7px 10px;
+    }
+
+}
