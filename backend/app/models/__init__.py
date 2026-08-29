@@ -6,3 +6,4 @@ from app.models.user import User
 from app.models.attachment import DocumentAttachment
 from app.models.document_field import DocumentField
 from app.models.document_field_value import DocumentFieldValue
+from app.models.bureau import Bureau

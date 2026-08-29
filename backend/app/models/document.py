@@ -20,6 +20,15 @@ class Document(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
+    bureau_id = Column(
+        Integer,
+        ForeignKey(
+            "bureaux.id",
+            ondelete="RESTRICT",
+        ),
+        nullable=True,
+    )
+
     reference_archive = Column(
         String(100),
         unique=True,
@@ -95,6 +104,11 @@ class Document(Base):
     # Relations
     # ==========================
 
+    bureau = relationship(
+        "Bureau",
+        back_populates="documents",
+
+    )
     type_document = relationship(
         "DocumentType",
         back_populates="documents",

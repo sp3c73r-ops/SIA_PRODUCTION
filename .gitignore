@@ -36,3 +36,6 @@ build/
 *.swp
 .DS_Store
 Thumbs.db
+
+# Database backups
+*.dump
