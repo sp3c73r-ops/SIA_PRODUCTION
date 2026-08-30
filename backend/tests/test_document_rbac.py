@@ -84,8 +84,12 @@ class TestDocumentRbac(unittest.TestCase):
     def test_user_bureau_1_without_document_read_is_403(self):
         user = _user(11, USER_ROLE_USER, [], bureau_id=1)
 
-        with self.assertRaises(HTTPException) as ctx:
-            document_service.get_by_id(self.db, 5, user)
+        with patch(
+            "app.security.authorization.permission_request_repository.find_approved",
+            return_value=None,
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                document_service.get_by_id(self.db, 5, user)
 
         self.assertEqual(ctx.exception.status_code, 403)
 

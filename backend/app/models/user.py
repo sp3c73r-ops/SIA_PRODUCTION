@@ -75,3 +75,15 @@ class User(Base):
         "Document",
         back_populates="encodeur",
     )
+
+    permission_requests = relationship(
+        "PermissionRequest",
+        foreign_keys="PermissionRequest.user_id",
+        back_populates="user",
+    )
+
+    reviewed_permission_requests = relationship(
+        "PermissionRequest",
+        foreign_keys="PermissionRequest.reviewed_by",
+        back_populates="reviewer",
+    )

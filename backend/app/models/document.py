@@ -139,6 +139,11 @@ class Document(Base):
         cascade="all, delete-orphan",
     )
 
+    permission_requests = relationship(
+        "PermissionRequest",
+        back_populates="document",
+    )
+
     @staticmethod
     def _extract_typed_value(item):
         if item.value_string is not None:

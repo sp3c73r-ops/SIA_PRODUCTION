@@ -19,7 +19,7 @@ from app.repositories.document_field_value_repository import (
 from app.repositories.document_repository import (
     document_repository
 )
-from app.security.authorization import has_permission
+from app.security.authorization import has_effective_permission
 from app.security.authorization import is_admin
 from app.security.permissions import PERMISSION_DOCUMENT_CREATE
 from app.security.permissions import PERMISSION_DOCUMENT_DELETE
@@ -48,12 +48,18 @@ class DocumentService:
 
     def _ensure_permission(
         self,
+        db: Session,
         current_user: User,
         permission: str,
+        bureau_id: Optional[int] = None,
+        document_id: Optional[int] = None,
     ):
-        if not has_permission(
+        if not has_effective_permission(
+            db,
             current_user,
             permission,
+            document_id=document_id,
+            bureau_id=bureau_id,
         ):
             raise HTTPException(
                 status_code=403,
@@ -313,13 +319,15 @@ class DocumentService:
         current_user: User,
     ):
 
-        self._ensure_permission(
-            current_user,
-            PERMISSION_DOCUMENT_CREATE,
-        )
-
         scope_bureau_id = self._get_scope_bureau_id(
             current_user,
+        )
+
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_CREATE,
+            bureau_id=scope_bureau_id,
         )
 
         document_data = data.model_dump()
@@ -393,13 +401,15 @@ class DocumentService:
         current_user: User,
     ):
 
-        self._ensure_permission(
-            current_user,
-            PERMISSION_DOCUMENT_READ,
-        )
-
         scope_bureau_id = self._get_scope_bureau_id(
             current_user,
+        )
+
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_READ,
+            bureau_id=scope_bureau_id,
         )
 
         return document_repository.get_all(
@@ -426,13 +436,15 @@ class DocumentService:
         date_fin=None,
     ):
 
-        self._ensure_permission(
-            current_user,
-            PERMISSION_DOCUMENT_READ,
-        )
-
         scope_bureau_id = self._get_scope_bureau_id(
             current_user,
+        )
+
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_READ,
+            bureau_id=scope_bureau_id,
         )
 
         return document_repository.search(
@@ -460,13 +472,16 @@ class DocumentService:
         current_user: User,
     ):
 
-        self._ensure_permission(
-            current_user,
-            PERMISSION_DOCUMENT_READ,
-        )
-
         scope_bureau_id = self._get_scope_bureau_id(
             current_user,
+        )
+
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_READ,
+            bureau_id=scope_bureau_id,
+            document_id=document_id,
         )
 
         document = document_repository.get_by_id(
@@ -503,13 +518,16 @@ class DocumentService:
         current_user: User,
     ):
 
-        self._ensure_permission(
-            current_user,
-            PERMISSION_DOCUMENT_UPDATE,
-        )
-
         scope_bureau_id = self._get_scope_bureau_id(
             current_user,
+        )
+
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_UPDATE,
+            bureau_id=scope_bureau_id,
+            document_id=document_id,
         )
 
         document = document_repository.get_by_id(
@@ -628,13 +646,16 @@ class DocumentService:
         current_user: User,
     ):
 
-        self._ensure_permission(
-            current_user,
-            PERMISSION_DOCUMENT_DELETE,
-        )
-
         scope_bureau_id = self._get_scope_bureau_id(
             current_user,
+        )
+
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_DELETE,
+            bureau_id=scope_bureau_id,
+            document_id=document_id,
         )
 
         document = document_repository.get_by_id(

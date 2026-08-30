@@ -58,3 +58,8 @@ class Bureau(Base):
         "Document",
         back_populates="bureau",
     )
+
+    permission_requests = relationship(
+        "PermissionRequest",
+        back_populates="bureau",
+    )

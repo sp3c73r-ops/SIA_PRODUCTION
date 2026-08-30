@@ -17,6 +17,9 @@ from app.api.attachment_router import (
 from app.api.document_field_router import (
     router as document_field_router,
 )
+from app.api.permission_request_router import (
+    router as permission_request_router,
+)
 
 
 bearer_scheme = HTTPBearer()
@@ -63,6 +66,7 @@ app.include_router(auth_router)
 app.include_router(attachment_router)
 app.include_router(document_field_router)
 app.include_router(movement_router)
+app.include_router(permission_request_router)
 app.include_router(
     dashboard_router.router
 )
