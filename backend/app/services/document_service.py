@@ -19,6 +19,12 @@ from app.repositories.document_field_value_repository import (
 from app.repositories.document_repository import (
     document_repository
 )
+from app.security.authorization import has_permission
+from app.security.authorization import is_admin
+from app.security.permissions import PERMISSION_DOCUMENT_CREATE
+from app.security.permissions import PERMISSION_DOCUMENT_DELETE
+from app.security.permissions import PERMISSION_DOCUMENT_READ
+from app.security.permissions import PERMISSION_DOCUMENT_UPDATE
 
 from app.schemas.document_schema import (
     DocumentCreate,
@@ -39,6 +45,41 @@ class DocumentService:
         "datetime": "value_datetime",
         "boolean": "value_boolean",
     }
+
+    def _ensure_permission(
+        self,
+        current_user: User,
+        permission: str,
+    ):
+        if not has_permission(
+            current_user,
+            permission,
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Acces refuse: permission insuffisante.",
+            )
+
+    def _get_scope_bureau_id(
+        self,
+        current_user: User,
+    ) -> Optional[int]:
+        if is_admin(current_user):
+            return None
+
+        user_bureau_id = getattr(
+            current_user,
+            "bureau_id",
+            None,
+        )
+
+        if user_bureau_id is None:
+            raise HTTPException(
+                status_code=403,
+                detail="Acces refuse: bureau non assigne.",
+            )
+
+        return user_bureau_id
 
     def _is_empty(self, value: Any) -> bool:
         if value is None:
@@ -272,6 +313,15 @@ class DocumentService:
         current_user: User,
     ):
 
+        self._ensure_permission(
+            current_user,
+            PERMISSION_DOCUMENT_CREATE,
+        )
+
+        scope_bureau_id = self._get_scope_bureau_id(
+            current_user,
+        )
+
         document_data = data.model_dump()
         custom_fields_payload = document_data.pop(
             "custom_fields",
@@ -305,6 +355,10 @@ class DocumentService:
             None
         )
 
+        # Un USER ne peut créer que dans son propre bureau.
+        if scope_bureau_id is not None:
+            document_data["bureau_id"] = scope_bureau_id
+
         document = Document(
             **document_data,
             encodeur_id=current_user.id,
@@ -336,10 +390,21 @@ class DocumentService:
     def get_all(
         self,
         db: Session,
+        current_user: User,
     ):
 
+        self._ensure_permission(
+            current_user,
+            PERMISSION_DOCUMENT_READ,
+        )
+
+        scope_bureau_id = self._get_scope_bureau_id(
+            current_user,
+        )
+
         return document_repository.get_all(
-            db
+            db,
+            bureau_id=scope_bureau_id,
         )
 
     # ============================================================
@@ -349,6 +414,7 @@ class DocumentService:
     def search(
         self,
         db: Session,
+        current_user: User,
         reference_archive: Optional[str] = None,
         nom_document: Optional[str] = None,
         code_foncier: Optional[str] = None,
@@ -360,8 +426,18 @@ class DocumentService:
         date_fin=None,
     ):
 
+        self._ensure_permission(
+            current_user,
+            PERMISSION_DOCUMENT_READ,
+        )
+
+        scope_bureau_id = self._get_scope_bureau_id(
+            current_user,
+        )
+
         return document_repository.search(
             db=db,
+            bureau_id=scope_bureau_id,
             reference_archive=reference_archive,
             nom_document=nom_document,
             code_foncier=code_foncier,
@@ -381,12 +457,39 @@ class DocumentService:
         self,
         db: Session,
         document_id: int,
+        current_user: User,
     ):
 
-        return document_repository.get_by_id(
+        self._ensure_permission(
+            current_user,
+            PERMISSION_DOCUMENT_READ,
+        )
+
+        scope_bureau_id = self._get_scope_bureau_id(
+            current_user,
+        )
+
+        document = document_repository.get_by_id(
             db,
             document_id,
+            bureau_id=scope_bureau_id,
         )
+
+        if document:
+            return document
+
+        if scope_bureau_id is not None:
+            existing_document = document_repository.get_by_id(
+                db,
+                document_id,
+            )
+            if existing_document is not None:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Acces interdit a ce document.",
+                )
+
+        return None
 
     # ============================================================
     # MODIFICATION
@@ -397,14 +500,35 @@ class DocumentService:
         db: Session,
         document_id: int,
         data: DocumentUpdate,
+        current_user: User,
     ):
+
+        self._ensure_permission(
+            current_user,
+            PERMISSION_DOCUMENT_UPDATE,
+        )
+
+        scope_bureau_id = self._get_scope_bureau_id(
+            current_user,
+        )
 
         document = document_repository.get_by_id(
             db,
             document_id,
+            bureau_id=scope_bureau_id,
         )
 
         if not document:
+            if scope_bureau_id is not None:
+                existing_document = document_repository.get_by_id(
+                    db,
+                    document_id,
+                )
+                if existing_document is not None:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Acces interdit a ce document.",
+                    )
             return None
 
         update_data = data.model_dump(
@@ -501,14 +625,35 @@ class DocumentService:
         self,
         db: Session,
         document_id: int,
+        current_user: User,
     ):
+
+        self._ensure_permission(
+            current_user,
+            PERMISSION_DOCUMENT_DELETE,
+        )
+
+        scope_bureau_id = self._get_scope_bureau_id(
+            current_user,
+        )
 
         document = document_repository.get_by_id(
             db,
             document_id,
+            bureau_id=scope_bureau_id,
         )
 
         if not document:
+            if scope_bureau_id is not None:
+                existing_document = document_repository.get_by_id(
+                    db,
+                    document_id,
+                )
+                if existing_document is not None:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Acces interdit a ce document.",
+                    )
             return False
 
         return document_repository.delete(

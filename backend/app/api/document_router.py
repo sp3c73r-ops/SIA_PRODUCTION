@@ -23,6 +23,11 @@ from app.schemas.document_schema import (
 from app.security.dependencies import (
     get_current_user,
 )
+from app.security.authorization import require_permission
+from app.security.permissions import PERMISSION_DOCUMENT_CREATE
+from app.security.permissions import PERMISSION_DOCUMENT_DELETE
+from app.security.permissions import PERMISSION_DOCUMENT_READ
+from app.security.permissions import PERMISSION_DOCUMENT_UPDATE
 
 from app.services.document_service import (
     document_service,
@@ -47,7 +52,7 @@ def create_document(
     document: DocumentCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_DOCUMENT_CREATE)
     ),
 ):
 
@@ -107,7 +112,7 @@ def search_documents(
     db: Session = Depends(get_db),
 
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_DOCUMENT_READ)
     ),
 ):
 
@@ -126,6 +131,7 @@ def search_documents(
 
     return document_service.search(
         db=db,
+        current_user=current_user,
         reference_archive=reference_archive,
         nom_document=nom_document,
         code_foncier=code_foncier,
@@ -149,12 +155,13 @@ def search_documents(
 def list_documents(
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_DOCUMENT_READ)
     ),
 ):
 
     return document_service.get_all(
-        db
+        db,
+        current_user,
     )
 
 
@@ -170,13 +177,14 @@ def get_document(
     document_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_DOCUMENT_READ)
     ),
 ):
 
     document = document_service.get_by_id(
         db,
         document_id,
+        current_user,
     )
 
     if not document:
@@ -202,7 +210,7 @@ def update_document(
     data: DocumentUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_DOCUMENT_UPDATE)
     ),
 ):
 
@@ -210,6 +218,7 @@ def update_document(
         db,
         document_id,
         data,
+        current_user,
     )
 
     if not document:
@@ -233,13 +242,14 @@ def delete_document(
     document_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_DOCUMENT_DELETE)
     ),
 ):
 
     success = document_service.delete(
         db,
         document_id,
+        current_user,
     )
 
     if not success:

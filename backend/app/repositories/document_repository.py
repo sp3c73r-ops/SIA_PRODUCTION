@@ -30,8 +30,9 @@ class DocumentRepository:
     def get_all(
         self,
         db: Session,
+        bureau_id: Optional[int] = None,
     ):
-        return (
+        query = (
             db.query(Document)
             .options(
                 selectinload(Document.custom_field_values)
@@ -40,6 +41,15 @@ class DocumentRepository:
             .filter(
                 Document.is_deleted == False
             )
+        )
+
+        if bureau_id is not None:
+            query = query.filter(
+                Document.bureau_id == bureau_id
+            )
+
+        return (
+            query
             .order_by(
                 Document.id.desc()
             )
@@ -53,6 +63,7 @@ class DocumentRepository:
     def search(
         self,
         db: Session,
+        bureau_id: Optional[int] = None,
         reference_archive: Optional[str] = None,
         nom_document: Optional[str] = None,
         code_foncier: Optional[str] = None,
@@ -74,6 +85,11 @@ class DocumentRepository:
                 Document.is_deleted == False
             )
         )
+
+        if bureau_id is not None:
+            query = query.filter(
+                Document.bureau_id == bureau_id
+            )
 
         # --------------------------------------------------------
         # REFERENCE ARCHIVE
@@ -185,9 +201,10 @@ class DocumentRepository:
         self,
         db: Session,
         document_id: int,
+        bureau_id: Optional[int] = None,
     ):
 
-        return (
+        query = (
             db.query(Document)
             .options(
                 selectinload(Document.custom_field_values)
@@ -196,8 +213,14 @@ class DocumentRepository:
             .filter(
                 Document.id == document_id
             )
-            .first()
         )
+
+        if bureau_id is not None:
+            query = query.filter(
+                Document.bureau_id == bureau_id
+            )
+
+        return query.first()
 
     # ============================================================
     # MODIFICATION
