@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.attachment import DocumentAttachment
+from app.models.document import Document
 
 
 class AttachmentRepository:
@@ -54,6 +55,32 @@ class AttachmentRepository:
 
         return (
             db.query(DocumentAttachment)
+            .order_by(
+                DocumentAttachment.created_at.desc()
+            )
+            .all()
+        )
+
+
+    # ============================================================
+    # RECUPERER LES PIECES JOINTES PAR BUREAU DU DOCUMENT PARENT
+    # ============================================================
+
+    def get_all_by_bureau(
+        self,
+        db: Session,
+        bureau_id: int,
+    ):
+
+        return (
+            db.query(DocumentAttachment)
+            .join(
+                Document,
+                DocumentAttachment.document_id == Document.id,
+            )
+            .filter(
+                Document.bureau_id == bureau_id
+            )
             .order_by(
                 DocumentAttachment.created_at.desc()
             )

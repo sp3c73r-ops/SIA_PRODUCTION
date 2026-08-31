@@ -54,7 +54,8 @@ def list_all_attachments(
 ):
 
     return attachment_service.get_all(
-        db
+        db,
+        current_user,
     )
 
 
@@ -79,6 +80,7 @@ def download_attachment(
         attachment_service.get_by_id(
             db,
             attachment_id,
+            current_user,
         )
     )
 
@@ -125,6 +127,7 @@ def delete_attachment(
     success = attachment_service.delete(
         db,
         attachment_id,
+        current_user,
     )
 
     if not success:
@@ -160,6 +163,7 @@ def upload_attachment(
         db,
         document_id,
         file,
+        current_user,
     )
 
     return attachment
@@ -184,4 +188,5 @@ def list_attachments(
     return attachment_service.get_by_document_id(
         db,
         document_id,
+        current_user,
     )
