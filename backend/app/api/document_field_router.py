@@ -26,7 +26,7 @@ def get_document_fields(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return document_field_service.get_all(db)
+    return document_field_service.get_all(db, current_user)
 
 
 @router.get(
@@ -38,7 +38,11 @@ def get_document_field(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    field = document_field_service.get_by_id(db, field_id)
+    field = document_field_service.get_by_id(
+        db,
+        field_id,
+        current_user,
+    )
     if not field:
         raise HTTPException(
             status_code=404,
@@ -57,7 +61,11 @@ def create_document_field(
     current_user=Depends(get_current_user),
 ):
     try:
-        return document_field_service.create(db, data)
+        return document_field_service.create(
+            db,
+            data,
+            current_user,
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
@@ -76,7 +84,12 @@ def update_document_field(
     current_user=Depends(get_current_user),
 ):
     try:
-        item = document_field_service.update(db, field_id, data)
+        item = document_field_service.update(
+            db,
+            field_id,
+            data,
+            current_user,
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
@@ -102,7 +115,12 @@ def toggle_document_field_active(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    item = document_field_service.toggle_active(db, field_id, active)
+    item = document_field_service.toggle_active(
+        db,
+        field_id,
+        active,
+        current_user,
+    )
     if not item:
         raise HTTPException(
             status_code=404,
@@ -120,7 +138,11 @@ def delete_document_field(
     current_user=Depends(get_current_user),
 ):
     try:
-        success = document_field_service.delete(db, field_id)
+        success = document_field_service.delete(
+            db,
+            field_id,
+            current_user,
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=400,

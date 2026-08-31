@@ -1,8 +1,10 @@
 from typing import Optional
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.document_field import DocumentField
+from app.models.user import User
 from app.repositories.document_field_repository import (
     document_field_repository,
 )
@@ -13,6 +15,12 @@ from app.schemas.document_field_schema import (
     DocumentFieldCreate,
     DocumentFieldUpdate,
 )
+from app.security.authorization import has_effective_permission
+from app.security.permissions import PERMISSION_DOCUMENT_FIELD_CREATE
+from app.security.permissions import PERMISSION_DOCUMENT_FIELD_DELETE
+from app.security.permissions import PERMISSION_DOCUMENT_FIELD_READ
+from app.security.permissions import PERMISSION_DOCUMENT_FIELD_UPDATE
+from app.security.permissions import is_known_permission
 
 
 class DocumentFieldService:
@@ -23,13 +31,54 @@ class DocumentFieldService:
             document_field_value_repository
         )
 
-    def get_all(self, db: Session):
+    def _ensure_permission(
+        self,
+        db: Session,
+        current_user: User,
+        permission: str,
+    ):
+        if not is_known_permission(permission) or not has_effective_permission(
+            db,
+            current_user,
+            permission,
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Acces refuse: permission insuffisante.",
+            )
+
+    def get_all(self, db: Session, current_user: User):
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_FIELD_READ,
+        )
         return self.repository.get_all(db)
 
-    def get_by_id(self, db: Session, item_id: int):
+    def get_by_id(
+        self,
+        db: Session,
+        item_id: int,
+        current_user: User,
+    ):
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_FIELD_READ,
+        )
         return self.repository.get_by_id(db, item_id)
 
-    def create(self, db: Session, data: DocumentFieldCreate):
+    def create(
+        self,
+        db: Session,
+        data: DocumentFieldCreate,
+        current_user: User,
+    ):
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_FIELD_CREATE,
+        )
         existing = self.repository.get_by_name(db, data.name)
         if existing:
             raise ValueError("Ce nom technique existe déjà.")
@@ -37,7 +86,18 @@ class DocumentFieldService:
         item = DocumentField(**data.model_dump())
         return self.repository.create(db, item)
 
-    def update(self, db: Session, item_id: int, data: DocumentFieldUpdate):
+    def update(
+        self,
+        db: Session,
+        item_id: int,
+        data: DocumentFieldUpdate,
+        current_user: User,
+    ):
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_FIELD_UPDATE,
+        )
         item = self.repository.get_by_id(db, item_id)
         if not item:
             return None
@@ -66,7 +126,17 @@ class DocumentFieldService:
 
         return self.repository.update(db, item)
 
-    def delete(self, db: Session, item_id: int):
+    def delete(
+        self,
+        db: Session,
+        item_id: int,
+        current_user: User,
+    ):
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_FIELD_DELETE,
+        )
         item = self.repository.get_by_id(db, item_id)
         if not item:
             return False
@@ -83,7 +153,18 @@ class DocumentFieldService:
 
         return self.repository.delete(db, item)
 
-    def toggle_active(self, db: Session, item_id: int, active: bool):
+    def toggle_active(
+        self,
+        db: Session,
+        item_id: int,
+        active: bool,
+        current_user: User,
+    ):
+        self._ensure_permission(
+            db,
+            current_user,
+            PERMISSION_DOCUMENT_FIELD_UPDATE,
+        )
         item = self.repository.get_by_id(db, item_id)
         if not item:
             return None
