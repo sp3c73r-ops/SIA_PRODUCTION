@@ -4,8 +4,15 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException
+from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import sessionmaker
 
+from app.models.audit_log import AuditLog
+from app.models.bureau import Bureau
+from app.models.circonscription import Circonscription
+from app.models.document import Document
+from app.models.permission_request import PermissionRequest
 from app.models.permission_request import PERMISSION_REQUEST_STATUS_APPROVED
 from app.models.permission_request import PERMISSION_REQUEST_STATUS_PENDING
 from app.models.permission_request import PERMISSION_REQUEST_STATUS_REJECTED
@@ -58,6 +65,7 @@ class TestPermissionRequestWorkflow(unittest.TestCase):
             refresh=lambda _: None,
             add=lambda _: None,
             rollback=lambda: None,
+            flush=lambda: None,
         )
 
     # 1. USER peut creer une demande.
@@ -74,7 +82,7 @@ class TestPermissionRequestWorkflow(unittest.TestCase):
         ), patch(
             "app.services.permission_request_service.permission_request_repository.create",
         ) as mock_create:
-            mock_create.side_effect = lambda _db, request: request
+            mock_create.side_effect = lambda _db, request, **kwargs: request
             result = permission_request_service.create(self.db, user, payload)
 
         self.assertEqual(result.user_id, 10)
@@ -105,7 +113,7 @@ class TestPermissionRequestWorkflow(unittest.TestCase):
         ), patch(
             "app.services.permission_request_service.permission_request_repository.create",
         ) as mock_create:
-            mock_create.side_effect = lambda _db, request: request
+            mock_create.side_effect = lambda _db, request, **kwargs: request
             permission_request_service.create(self.db, user, payload)
 
         created_request = mock_create.call_args.kwargs["request"]
@@ -122,7 +130,7 @@ class TestPermissionRequestWorkflow(unittest.TestCase):
         ), patch(
             "app.services.permission_request_service.permission_request_repository.create",
         ) as mock_create:
-            mock_create.side_effect = lambda _db, request: request
+            mock_create.side_effect = lambda _db, request, **kwargs: request
             permission_request_service.create(self.db, user, payload)
 
         created_request = mock_create.call_args.kwargs["request"]
@@ -525,6 +533,124 @@ class TestPermissionRequestWorkflow(unittest.TestCase):
                 permission_request_service.reject(self.db, 99, admin)
 
         self.assertEqual(ctx.exception.status_code, 404)
+
+
+class TestPermissionRequestAuditLogTransaction(unittest.TestCase):
+
+    def setUp(self):
+        self.engine = create_engine("sqlite:///:memory:")
+        PermissionRequest.__table__.create(bind=self.engine)
+        AuditLog.__table__.create(bind=self.engine)
+        Bureau.__table__.create(bind=self.engine, checkfirst=True)
+        Circonscription.__table__.create(bind=self.engine, checkfirst=True)
+        Document.__table__.create(bind=self.engine, checkfirst=True)
+
+        Session = sessionmaker(bind=self.engine)
+        self.db = Session()
+
+    def tearDown(self):
+        self.db.close()
+
+    # TEST 1 — SUCCÈS
+    def test_permission_request_creation_creates_atomic_audit_log(self):
+        user = _user(10, USER_ROLE_USER, bureau_id=1)
+        user.bureau = SimpleNamespace(id=1, circonscription_id=100)
+        payload = SimpleNamespace(permission="document.update", document_id=8, reason="Raison de test")
+
+        with patch(
+            "app.services.permission_request_service.document_repository.get_by_id",
+            return_value=SimpleNamespace(id=8, bureau_id=1),
+        ):
+            req = permission_request_service.create(self.db, user, payload)
+
+        # Vérification PermissionRequest
+        saved_req = self.db.query(PermissionRequest).filter(PermissionRequest.id == req.id).first()
+        self.assertIsNotNone(saved_req)
+        self.assertEqual(saved_req.status, PERMISSION_REQUEST_STATUS_PENDING)
+
+        # Vérification AuditLog
+        logs = self.db.query(AuditLog).all()
+        self.assertEqual(len(logs), 1)
+        log = logs[0]
+        self.assertEqual(log.action, "permission_request.created")
+        self.assertEqual(log.entity_type, "PermissionRequest")
+        self.assertEqual(log.entity_id, req.id)
+        self.assertEqual(log.permission_request_id, req.id)
+        self.assertEqual(log.actor_user_id, 10)
+        self.assertEqual(log.document_id, 8)
+        self.assertEqual(log.bureau_id, 1)
+        self.assertEqual(log.circonscription_id, 100)
+        self.assertIsNone(log.old_state)
+        self.assertEqual(log.new_state["permission"], "document.update")
+        self.assertEqual(log.new_state["document_id"], 8)
+        self.assertEqual(log.new_state["reason"], "Raison de test")
+        self.assertEqual(log.new_state["status"], "PENDING")
+
+    # TEST 2 — ÉCHEC AUDITLOG -> ROLLBACK ATOMIQUE
+    def test_audit_log_failure_rolls_back_permission_request(self):
+        user = _user(11, USER_ROLE_USER, bureau_id=1)
+        user.bureau = SimpleNamespace(id=1, circonscription_id=100)
+        payload = SimpleNamespace(permission="document.read", document_id=None, reason="Lecture")
+
+        with patch(
+            "app.services.permission_request_service.audit_log_service.log_event",
+            side_effect=RuntimeError("Erreur audit simulee"),
+        ):
+            with self.assertRaises(RuntimeError):
+                permission_request_service.create(self.db, user, payload)
+
+        self.assertEqual(self.db.query(PermissionRequest).count(), 0)
+        self.assertEqual(self.db.query(AuditLog).count(), 0)
+
+    # TEST 3 — ÉCHEC PERMISSIONREQUEST / DOUBLON
+    def test_duplicate_pending_rejected_with_no_additional_audit_log(self):
+        user = _user(12, USER_ROLE_USER, bureau_id=1)
+        user.bureau = SimpleNamespace(id=1, circonscription_id=100)
+        payload = SimpleNamespace(permission="document.read", document_id=None, reason="Lecture")
+
+        req1 = permission_request_service.create(self.db, user, payload)
+        self.assertEqual(self.db.query(AuditLog).count(), 1)
+
+        with self.assertRaises(HTTPException) as ctx:
+            permission_request_service.create(self.db, user, payload)
+
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(ctx.exception.detail, "Une demande identique est deja en attente.")
+        self.assertEqual(self.db.query(AuditLog).count(), 1)
+
+    # TEST 4 — INTÉGRITÉ DES RÉFÉRENCES
+    def test_audit_log_references_integrity_enforced_by_backend(self):
+        user = _user(15, USER_ROLE_USER, bureau_id=2)
+        user.bureau = SimpleNamespace(id=2, circonscription_id=200)
+        payload = SimpleNamespace(permission="document.update", document_id=12, reason="Audit ref")
+
+        with patch(
+            "app.services.permission_request_service.document_repository.get_by_id",
+            return_value=SimpleNamespace(id=12, bureau_id=2),
+        ):
+            req = permission_request_service.create(self.db, user, payload)
+
+        log = self.db.query(AuditLog).filter(AuditLog.permission_request_id == req.id).first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.actor_user_id, 15)
+        self.assertEqual(log.bureau_id, 2)
+        self.assertEqual(log.circonscription_id, 200)
+        self.assertEqual(log.document_id, 12)
+        self.assertEqual(log.permission_request_id, req.id)
+
+    # TEST 5 — DONNÉES SENSIBLES
+    def test_sensitive_data_absent_from_audit_log(self):
+        user = _user(16, USER_ROLE_USER, bureau_id=1)
+        user.bureau = SimpleNamespace(id=1, circonscription_id=100)
+        payload = SimpleNamespace(permission="document.read", document_id=None, reason="Demande standard")
+
+        req = permission_request_service.create(self.db, user, payload)
+        log = self.db.query(AuditLog).filter(AuditLog.permission_request_id == req.id).first()
+
+        self.assertNotIn("password", log.new_state)
+        self.assertNotIn("token", log.new_state)
+        self.assertNotIn("jwt", log.new_state)
+        self.assertNotIn("secret", log.new_state)
 
 
 if __name__ == "__main__":

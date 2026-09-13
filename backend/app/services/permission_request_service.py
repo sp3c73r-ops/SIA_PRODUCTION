@@ -9,10 +9,12 @@ from app.models.permission_request import PermissionRequest
 from app.models.permission_request import PERMISSION_REQUEST_STATUS_PENDING
 from app.models.user import USER_ROLE_USER
 from app.models.user import User
+from app.repositories.bureau_repository import bureau_repository
 from app.repositories.document_repository import document_repository
 from app.repositories.permission_request_repository import permission_request_repository
 from app.security.authorization import is_admin
 from app.security.permissions import is_known_permission
+from app.services.audit_log_service import audit_log_service
 
 
 class PermissionRequestService:
@@ -170,7 +172,40 @@ class PermissionRequestService:
                     reason=data.reason,
                     status=PERMISSION_REQUEST_STATUS_PENDING,
                 ),
+                auto_commit=False,
             )
+
+            circonscription_id = None
+            user_bureau = getattr(current_user, "bureau", None)
+            if user_bureau is not None and getattr(user_bureau, "circonscription_id", None) is not None:
+                circonscription_id = user_bureau.circonscription_id
+            elif hasattr(db, "query"):
+                bureau_obj = bureau_repository.get_by_id(db, bureau_id)
+                if bureau_obj is not None:
+                    circonscription_id = bureau_obj.circonscription_id
+
+            audit_log_service.log_event(
+                db,
+                action="permission_request.created",
+                entity_type="PermissionRequest",
+                entity_id=request.id,
+                permission_request_id=request.id,
+                actor_user_id=current_user.id,
+                document_id=document_id,
+                bureau_id=bureau_id,
+                circonscription_id=circonscription_id,
+                old_state=None,
+                new_state={
+                    "permission": permission,
+                    "document_id": document_id,
+                    "reason": data.reason,
+                    "status": PERMISSION_REQUEST_STATUS_PENDING,
+                },
+                auto_commit=False,
+            )
+
+            db.commit()
+            db.refresh(request)
         except IntegrityError as exc:
             db.rollback()
 
@@ -180,6 +215,9 @@ class PermissionRequestService:
                     detail="Une demande identique est deja en attente.",
                 ) from exc
 
+            raise
+        except Exception:
+            db.rollback()
             raise
 
         return request

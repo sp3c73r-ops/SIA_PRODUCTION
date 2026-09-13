@@ -13,10 +13,18 @@ from app.models.permission_request import PermissionRequest
 
 class PermissionRequestRepository:
 
-    def create(self, db: Session, request: PermissionRequest):
+    def create(
+        self,
+        db: Session,
+        request: PermissionRequest,
+        auto_commit: bool = True,
+    ):
         db.add(request)
-        db.commit()
-        db.refresh(request)
+        if auto_commit:
+            db.commit()
+            db.refresh(request)
+        else:
+            db.flush()
         return request
 
     def get_by_id(self, db: Session, request_id: int):
