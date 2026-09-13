@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
-    Bell,
     ChevronDown,
     LogOut,
     UserCircle,
 } from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext";
+import NotificationBell from "./NotificationBell";
 
 export default function Header() {
     const { currentUser, logout } = useAuth();
@@ -69,7 +69,7 @@ export default function Header() {
 
             <div className="header-right">
 
-                <Bell size={22} />
+                <NotificationBell />
 
                 <div
                     className="header-profile"
