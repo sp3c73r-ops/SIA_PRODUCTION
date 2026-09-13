@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext";
+import PermissionRequestReviewModal from "./PermissionRequestReviewModal";
 import {
     getNotifications,
     getUnreadCount,
@@ -24,6 +25,7 @@ export default function NotificationBell() {
     const [error, setError] = useState(null);
     const [markingAll, setMarkingAll] = useState(false);
     const [markingIds, setMarkingIds] = useState(new Set());
+    const [reviewRequestId, setReviewRequestId] = useState(null);
 
     const bellRef = useRef(null);
 
@@ -155,6 +157,20 @@ export default function NotificationBell() {
     };
 
     // ============================================================
+    // CLIC SUR UNE NOTIFICATION (MARQUER LUE + REVISION SI PERMISSION_REQUEST)
+    // ============================================================
+    const handleNotificationClick = (notif) => {
+        if (!notif.read_at) {
+            handleMarkAsRead(notif);
+        }
+
+        if (notif.permission_request_id && currentUser?.role === "ADMIN") {
+            setIsOpen(false);
+            setReviewRequestId(notif.permission_request_id);
+        }
+    };
+
+    // ============================================================
     // MARQUER TOUTES LES NOTIFICATIONS COMME LUES
     // ============================================================
     const handleMarkAllAsRead = async () => {
@@ -276,20 +292,21 @@ export default function NotificationBell() {
                                 {notifications.map((notif) => {
                                     const isUnread = !notif.read_at;
                                     const isMarking = markingIds.has(notif.id);
+                                    const isInteractive = isUnread || (notif.permission_request_id && currentUser?.role === "ADMIN");
 
                                     return (
                                         <li
                                             key={notif.id}
                                             className={`notification-item ${
                                                 isUnread ? "is-unread" : "is-read"
-                                            }`}
-                                            onClick={() => isUnread && handleMarkAsRead(notif)}
-                                            role={isUnread ? "button" : "listitem"}
-                                            tabIndex={isUnread ? 0 : -1}
+                                            } ${isInteractive ? "is-interactive" : ""}`}
+                                            onClick={() => isInteractive && handleNotificationClick(notif)}
+                                            role={isInteractive ? "button" : "listitem"}
+                                            tabIndex={isInteractive ? 0 : -1}
                                             onKeyDown={(e) => {
-                                                if (isUnread && (e.key === "Enter" || e.key === " ")) {
+                                                if (isInteractive && (e.key === "Enter" || e.key === " ")) {
                                                     e.preventDefault();
-                                                    handleMarkAsRead(notif);
+                                                    handleNotificationClick(notif);
                                                 }
                                             }}
                                             aria-label={`${notif.title}, ${
@@ -345,6 +362,16 @@ export default function NotificationBell() {
                         )}
                     </div>
                 </div>
+            )}
+
+            {reviewRequestId && (
+                <PermissionRequestReviewModal
+                    requestId={reviewRequestId}
+                    onClose={() => setReviewRequestId(null)}
+                    onSuccess={() => {
+                        fetchNotifications();
+                    }}
+                />
             )}
         </div>
     );
