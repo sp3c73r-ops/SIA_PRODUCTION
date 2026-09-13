@@ -11,6 +11,7 @@ from app.models.document_field import DocumentField
 from app.models.document_field_value import DocumentFieldValue
 from app.models.permission_request import PermissionRequest
 from app.models.audit_log import AuditLog
+from app.models.notification import Notification
 from app.core.config import settings
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
