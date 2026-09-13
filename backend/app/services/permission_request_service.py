@@ -5,8 +5,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.bureau import Bureau
-from app.models.permission_request import PermissionRequest
-from app.models.permission_request import PERMISSION_REQUEST_STATUS_PENDING
+from app.models.permission_request import (
+    PERMISSION_REQUEST_STATUS_APPROVED,
+    PERMISSION_REQUEST_STATUS_PENDING,
+    PERMISSION_REQUEST_STATUS_REJECTED,
+    PermissionRequest,
+)
 from app.models.user import USER_ROLE_USER
 from app.models.user import User
 from app.repositories.bureau_repository import bureau_repository
@@ -15,6 +19,7 @@ from app.repositories.permission_request_repository import permission_request_re
 from app.security.authorization import is_admin
 from app.security.permissions import is_known_permission
 from app.services.audit_log_service import audit_log_service
+from app.services.notification_service import notification_service
 
 
 class PermissionRequestService:
@@ -204,6 +209,24 @@ class PermissionRequestService:
                 auto_commit=False,
             )
 
+            if circonscription_id:
+                user_name = (
+                    f"{getattr(current_user, 'prenom', '')} {getattr(current_user, 'nom', '')}".strip()
+                    or getattr(current_user, "username", None)
+                    or f"Utilisateur {getattr(current_user, 'id', '')}"
+                )
+                notification_service.notify_admins_of_circonscription(
+                    db,
+                    circonscription_id=circonscription_id,
+                    action="permission_request.created",
+                    title="Nouvelle demande d'autorisation de modification",
+                    message=f"L'utilisateur {user_name} demande l'autorisation de modifier un document.",
+                    permission_request_id=request.id,
+                    document_id=document_id,
+                    bureau_id=bureau_id,
+                    auto_commit=False,
+                )
+
             db.commit()
             db.refresh(request)
         except IntegrityError as exc:
@@ -296,21 +319,67 @@ class PermissionRequestService:
         now = datetime.now(timezone.utc)
         expires_at = now + timedelta(minutes=duration_minutes)
 
-        result = permission_request_repository.approve(
-            db,
-            request,
-            reviewed_by=current_user.id,
-            reviewed_at=now,
-            expires_at=expires_at,
-        )
-
-        if result is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Cette demande a deja ete traitee.",
+        try:
+            result = permission_request_repository.approve(
+                db,
+                request,
+                reviewed_by=current_user.id,
+                reviewed_at=now,
+                expires_at=expires_at,
+                auto_commit=False,
             )
 
-        return result
+            if result is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Cette demande a deja ete traitee.",
+                )
+
+            admin_circonscription_id = self._get_admin_circonscription_id(current_user)
+
+            audit_log_service.log_event(
+                db,
+                action="permission_request.approved",
+                entity_type="PermissionRequest",
+                entity_id=result.id,
+                permission_request_id=result.id,
+                actor_user_id=current_user.id,
+                document_id=result.document_id,
+                bureau_id=result.bureau_id,
+                circonscription_id=admin_circonscription_id,
+                old_state={"status": PERMISSION_REQUEST_STATUS_PENDING},
+                new_state={
+                    "status": PERMISSION_REQUEST_STATUS_APPROVED,
+                    "reviewed_by": current_user.id,
+                    "reviewed_at": now.isoformat(),
+                    "expires_at": expires_at.isoformat(),
+                    "duration_minutes": duration_minutes,
+                },
+                auto_commit=False,
+            )
+
+            notification_service.notify_user(
+                db,
+                recipient_user_id=result.user_id,
+                action="permission_request.approved",
+                title="Demande d'autorisation approuvée",
+                message=f"Votre demande d'autorisation de modification a été approuvée pour une durée de {duration_minutes} minute(s).",
+                permission_request_id=result.id,
+                document_id=result.document_id,
+                bureau_id=result.bureau_id,
+                circonscription_id=admin_circonscription_id,
+                auto_commit=False,
+            )
+
+            db.commit()
+            db.refresh(result)
+            return result
+        except HTTPException:
+            db.rollback()
+            raise
+        except Exception:
+            db.rollback()
+            raise
 
     def reject(self, db: Session, request_id: int, current_user: User):
         self._ensure_admin(current_user)
@@ -330,20 +399,64 @@ class PermissionRequestService:
 
         now = datetime.now(timezone.utc)
 
-        result = permission_request_repository.reject(
-            db,
-            request,
-            reviewed_by=current_user.id,
-            reviewed_at=now,
-        )
-
-        if result is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Cette demande a deja ete traitee.",
+        try:
+            result = permission_request_repository.reject(
+                db,
+                request,
+                reviewed_by=current_user.id,
+                reviewed_at=now,
+                auto_commit=False,
             )
 
-        return result
+            if result is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Cette demande a deja ete traitee.",
+                )
+
+            admin_circonscription_id = self._get_admin_circonscription_id(current_user)
+
+            audit_log_service.log_event(
+                db,
+                action="permission_request.rejected",
+                entity_type="PermissionRequest",
+                entity_id=result.id,
+                permission_request_id=result.id,
+                actor_user_id=current_user.id,
+                document_id=result.document_id,
+                bureau_id=result.bureau_id,
+                circonscription_id=admin_circonscription_id,
+                old_state={"status": PERMISSION_REQUEST_STATUS_PENDING},
+                new_state={
+                    "status": PERMISSION_REQUEST_STATUS_REJECTED,
+                    "reviewed_by": current_user.id,
+                    "reviewed_at": now.isoformat(),
+                },
+                auto_commit=False,
+            )
+
+            notification_service.notify_user(
+                db,
+                recipient_user_id=result.user_id,
+                action="permission_request.rejected",
+                title="Demande d'autorisation rejetée",
+                message="Votre demande d'autorisation de modification a été rejetée.",
+                permission_request_id=result.id,
+                document_id=result.document_id,
+                bureau_id=result.bureau_id,
+                circonscription_id=admin_circonscription_id,
+                auto_commit=False,
+            )
+
+            db.commit()
+            db.refresh(result)
+            return result
+        except HTTPException:
+            db.rollback()
+            raise
+        except Exception:
+            db.rollback()
+            raise
 
 
 permission_request_service = PermissionRequestService()

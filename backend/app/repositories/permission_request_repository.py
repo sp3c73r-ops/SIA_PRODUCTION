@@ -85,6 +85,7 @@ class PermissionRequestRepository:
         reviewed_by: int,
         reviewed_at: datetime,
         expires_at: datetime,
+        auto_commit: bool = True,
     ):
         updated_count = (
             db.query(PermissionRequest)
@@ -105,7 +106,10 @@ class PermissionRequestRepository:
             db.rollback()
             return None
 
-        db.commit()
+        if auto_commit:
+            db.commit()
+        else:
+            db.flush()
         return self.get_by_id(db, request.id)
 
     def reject(
@@ -114,6 +118,7 @@ class PermissionRequestRepository:
         request: PermissionRequest,
         reviewed_by: int,
         reviewed_at: datetime,
+        auto_commit: bool = True,
     ):
         updated_count = (
             db.query(PermissionRequest)
@@ -134,7 +139,10 @@ class PermissionRequestRepository:
             db.rollback()
             return None
 
-        db.commit()
+        if auto_commit:
+            db.commit()
+        else:
+            db.flush()
         return self.get_by_id(db, request.id)
 
     def cancel(

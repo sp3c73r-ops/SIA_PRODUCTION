@@ -12,12 +12,12 @@ from app.models.audit_log import AuditLog
 from app.models.bureau import Bureau
 from app.models.circonscription import Circonscription
 from app.models.document import Document
+from app.models.notification import Notification
 from app.models.permission_request import PermissionRequest
 from app.models.permission_request import PERMISSION_REQUEST_STATUS_APPROVED
 from app.models.permission_request import PERMISSION_REQUEST_STATUS_PENDING
 from app.models.permission_request import PERMISSION_REQUEST_STATUS_REJECTED
-from app.models.user import USER_ROLE_ADMIN
-from app.models.user import USER_ROLE_USER
+from app.models.user import USER_ROLE_ADMIN, USER_ROLE_USER, User
 from app.security.authorization import has_temporary_permission
 from app.services.permission_request_service import permission_request_service
 
@@ -241,8 +241,12 @@ class TestPermissionRequestWorkflow(unittest.TestCase):
             return_value=pending,
         ), patch(
             "app.services.permission_request_service.permission_request_repository.approve",
-            side_effect=lambda _db, request, reviewed_by, reviewed_at, expires_at: SimpleNamespace(
+            side_effect=lambda _db, request, reviewed_by, reviewed_at, expires_at, **kwargs: SimpleNamespace(
                 id=request.id,
+                user_id=request.user_id,
+                bureau_id=request.bureau_id,
+                permission=request.permission,
+                document_id=request.document_id,
                 status=PERMISSION_REQUEST_STATUS_APPROVED,
                 reviewed_by=reviewed_by,
                 reviewed_at=reviewed_at,
@@ -265,8 +269,12 @@ class TestPermissionRequestWorkflow(unittest.TestCase):
             return_value=pending,
         ), patch(
             "app.services.permission_request_service.permission_request_repository.reject",
-            side_effect=lambda _db, request, reviewed_by, reviewed_at: SimpleNamespace(
+            side_effect=lambda _db, request, reviewed_by, reviewed_at, **kwargs: SimpleNamespace(
                 id=request.id,
+                user_id=request.user_id,
+                bureau_id=request.bureau_id,
+                permission=request.permission,
+                document_id=request.document_id,
                 status=PERMISSION_REQUEST_STATUS_REJECTED,
                 reviewed_by=reviewed_by,
                 reviewed_at=reviewed_at,
@@ -352,8 +360,12 @@ class TestPermissionRequestWorkflow(unittest.TestCase):
             return_value=pending,
         ), patch(
             "app.services.permission_request_service.permission_request_repository.approve",
-            side_effect=lambda _db, request, reviewed_by, reviewed_at, expires_at: SimpleNamespace(
+            side_effect=lambda _db, request, reviewed_by, reviewed_at, expires_at, **kwargs: SimpleNamespace(
                 id=request.id,
+                user_id=request.user_id,
+                bureau_id=request.bureau_id,
+                permission=request.permission,
+                document_id=request.document_id,
                 status=PERMISSION_REQUEST_STATUS_APPROVED,
                 reviewed_by=reviewed_by,
                 reviewed_at=reviewed_at,
@@ -541,12 +553,24 @@ class TestPermissionRequestAuditLogTransaction(unittest.TestCase):
         self.engine = create_engine("sqlite:///:memory:")
         PermissionRequest.__table__.create(bind=self.engine)
         AuditLog.__table__.create(bind=self.engine)
+        Notification.__table__.create(bind=self.engine)
         Bureau.__table__.create(bind=self.engine, checkfirst=True)
         Circonscription.__table__.create(bind=self.engine, checkfirst=True)
         Document.__table__.create(bind=self.engine, checkfirst=True)
 
         Session = sessionmaker(bind=self.engine)
         self.db = Session()
+
+        real_query = self.db.query
+        def safe_query(model, *args, **kwargs):
+            if model == User:
+                m = MagicMock()
+                m.filter.return_value = m
+                m.all.return_value = []
+                return m
+            return real_query(model, *args, **kwargs)
+
+        self.db.query = safe_query
 
     def tearDown(self):
         self.db.close()
@@ -651,6 +675,157 @@ class TestPermissionRequestAuditLogTransaction(unittest.TestCase):
         self.assertNotIn("token", log.new_state)
         self.assertNotIn("jwt", log.new_state)
         self.assertNotIn("secret", log.new_state)
+
+    # TEST 6 — NOTIFICATION ADMIN À LA CRÉATION
+    def test_permission_request_creation_notifies_admins_of_circonscription(self):
+        user = _user(20, USER_ROLE_USER, bureau_id=1)
+        user.bureau = SimpleNamespace(id=1, circonscription_id=100)
+        user.nom = "Kabila"
+        user.prenom = "Joseph"
+
+        admin_100 = _user(101, USER_ROLE_ADMIN, admin_circonscription_id=100)
+        mock_admin_query = MagicMock()
+        mock_admin_query.filter.return_value.all.return_value = [admin_100]
+
+        original_query = self.db.query
+
+        def custom_query(model, *args, **kwargs):
+            if model == User:
+                return mock_admin_query
+            return original_query(model, *args, **kwargs)
+
+        payload = SimpleNamespace(permission="document.update", document_id=15, reason="Modif projet")
+
+        with patch(
+            "app.services.permission_request_service.document_repository.get_by_id",
+            return_value=SimpleNamespace(id=15, bureau_id=1),
+        ), patch.object(self.db, "query", side_effect=custom_query):
+            req = permission_request_service.create(self.db, user, payload)
+
+        # Vérifier la notification de l'ADMIN de la circonscription 100
+        notifs_100 = self.db.query(Notification).filter(Notification.recipient_user_id == 101).all()
+        self.assertEqual(len(notifs_100), 1)
+        notif = notifs_100[0]
+        self.assertEqual(notif.action, "permission_request.created")
+        self.assertEqual(notif.permission_request_id, req.id)
+        self.assertEqual(notif.document_id, 15)
+        self.assertEqual(notif.bureau_id, 1)
+        self.assertEqual(notif.circonscription_id, 100)
+        self.assertIn("Joseph Kabila", notif.message)
+
+    # TEST 7 — APPROBATION -> AUDITLOG + NOTIFICATION USER
+    def test_permission_request_approve_notifies_user_and_logs_audit(self):
+        # Préparation de la demande PENDING en base
+        req = PermissionRequest(
+            user_id=25,
+            bureau_id=2,
+            permission="document.update",
+            document_id=30,
+            status=PERMISSION_REQUEST_STATUS_PENDING,
+        )
+        self.db.add(req)
+        self.db.commit()
+
+        admin = _user(100, USER_ROLE_ADMIN, admin_circonscription_id=10)
+
+        with patch.object(
+            permission_request_service,
+            "_get_scoped_request",
+            return_value=req,
+        ):
+            approved = permission_request_service.approve(self.db, req.id, duration_minutes=60, current_user=admin)
+
+        self.assertEqual(approved.status, PERMISSION_REQUEST_STATUS_APPROVED)
+        self.assertIsNotNone(approved.expires_at)
+
+        # Vérification AuditLog
+        log = self.db.query(AuditLog).filter(
+            AuditLog.permission_request_id == req.id,
+            AuditLog.action == "permission_request.approved",
+        ).first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.actor_user_id, 100)
+
+        # Vérification Notification vers USER 25
+        notif = self.db.query(Notification).filter(
+            Notification.recipient_user_id == 25,
+            Notification.action == "permission_request.approved",
+        ).first()
+        self.assertIsNotNone(notif)
+        self.assertEqual(notif.permission_request_id, req.id)
+        self.assertEqual(notif.document_id, 30)
+        self.assertIn("60 minute(s)", notif.message)
+
+    # TEST 8 — REJET -> AUDITLOG + NOTIFICATION USER
+    def test_permission_request_reject_notifies_user_and_logs_audit(self):
+        req = PermissionRequest(
+            user_id=26,
+            bureau_id=2,
+            permission="document.update",
+            document_id=31,
+            status=PERMISSION_REQUEST_STATUS_PENDING,
+        )
+        self.db.add(req)
+        self.db.commit()
+
+        admin = _user(100, USER_ROLE_ADMIN, admin_circonscription_id=10)
+
+        with patch.object(
+            permission_request_service,
+            "_get_scoped_request",
+            return_value=req,
+        ):
+            rejected = permission_request_service.reject(self.db, req.id, current_user=admin)
+
+        self.assertEqual(rejected.status, PERMISSION_REQUEST_STATUS_REJECTED)
+
+        # Vérification AuditLog
+        log = self.db.query(AuditLog).filter(
+            AuditLog.permission_request_id == req.id,
+            AuditLog.action == "permission_request.rejected",
+        ).first()
+        self.assertIsNotNone(log)
+
+        # Vérification Notification vers USER 26
+        notif = self.db.query(Notification).filter(
+            Notification.recipient_user_id == 26,
+            Notification.action == "permission_request.rejected",
+        ).first()
+        self.assertIsNotNone(notif)
+        self.assertEqual(notif.permission_request_id, req.id)
+
+    # TEST 9 — ÉCHEC NOTIFICATION SUR APPROBATION -> ROLLBACK COMPLET
+    def test_approve_notification_failure_causes_rollback(self):
+        req = PermissionRequest(
+            user_id=27,
+            bureau_id=2,
+            permission="document.update",
+            document_id=32,
+            status=PERMISSION_REQUEST_STATUS_PENDING,
+        )
+        self.db.add(req)
+        self.db.commit()
+
+        admin = _user(100, USER_ROLE_ADMIN, admin_circonscription_id=10)
+
+        with patch.object(
+            permission_request_service,
+            "_get_scoped_request",
+            return_value=req,
+        ), patch(
+            "app.services.permission_request_service.notification_service.notify_user",
+            side_effect=RuntimeError("Erreur notification simulee"),
+        ):
+            with self.assertRaises(RuntimeError):
+                permission_request_service.approve(self.db, req.id, duration_minutes=15, current_user=admin)
+
+        # La demande doit rester PENDING
+        refreshed_req = self.db.query(PermissionRequest).filter(PermissionRequest.id == req.id).first()
+        self.assertEqual(refreshed_req.status, PERMISSION_REQUEST_STATUS_PENDING)
+
+        # Aucun AuditLog ou Notification enregistré
+        self.assertEqual(self.db.query(AuditLog).filter(AuditLog.permission_request_id == req.id).count(), 0)
+        self.assertEqual(self.db.query(Notification).filter(Notification.permission_request_id == req.id).count(), 0)
 
 
 if __name__ == "__main__":
