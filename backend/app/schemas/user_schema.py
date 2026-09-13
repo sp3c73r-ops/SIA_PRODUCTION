@@ -89,6 +89,28 @@ class UserResponse(UserBase):
         from_attributes = True
 
 
+class CurrentUserBureauResponse(BaseModel):
+    id: int
+    nom: str
+
+
+class CurrentUserCirconscriptionResponse(BaseModel):
+    id: int
+    nom: str
+
+
+class CurrentUserResponse(BaseModel):
+    id: int
+    nom: str
+    prenom: str
+    username: str
+    actif: bool
+    role: UserRole
+    bureau: CurrentUserBureauResponse | None = None
+    circonscription: CurrentUserCirconscriptionResponse | None = None
+    permissions: list[str] = Field(default_factory=list)
+
+
 class UserPermissionCreate(BaseModel):
     permission: str
 

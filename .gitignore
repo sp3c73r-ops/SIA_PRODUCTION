@@ -17,6 +17,7 @@ venv/
 
 # Uploads / runtime data
 backend/uploads/
+backend/app/uploads/
 uploads/
 
 # Node
@@ -27,8 +28,10 @@ frontend/node_modules/
 dist/
 build/
 
-# Logs
+# Logs / test outputs
 *.log
+backend/test_out.txt
+test_out.txt
 
 # IDE / OS
 .vscode/

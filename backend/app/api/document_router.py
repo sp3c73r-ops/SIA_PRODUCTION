@@ -4,10 +4,14 @@ from typing import List, Optional
 from fastapi import (
     APIRouter,
     Depends,
+    File,
+    Form,
     HTTPException,
     Query,
+    UploadFile,
 )
 
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
@@ -60,6 +64,36 @@ def create_document(
         db,
         document,
         current_user,
+    )
+
+
+@router.post(
+    "/with-attachment",
+    response_model=DocumentResponse,
+)
+def create_document_with_attachment(
+    document_json: str = Form(...),
+    file: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_permission(PERMISSION_DOCUMENT_CREATE)
+    ),
+):
+    try:
+        document = DocumentCreate.model_validate_json(
+            document_json
+        )
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=exc.errors(),
+        )
+
+    return document_service.create(
+        db,
+        document,
+        current_user,
+        initial_files=file,
     )
 
 
@@ -210,7 +244,7 @@ def update_document(
     data: DocumentUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        require_permission(PERMISSION_DOCUMENT_UPDATE)
+        get_current_user
     ),
 ):
 

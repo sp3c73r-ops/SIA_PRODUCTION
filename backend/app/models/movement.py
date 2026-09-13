@@ -44,6 +44,26 @@ class Movement(Base):
         index=True,
     )
 
+    bureau_origine_id = Column(
+        Integer,
+        ForeignKey(
+            "bureaux.id",
+            ondelete="RESTRICT",
+        ),
+        nullable=True,
+        index=True,
+    )
+
+    bureau_destination_id = Column(
+        Integer,
+        ForeignKey(
+            "bureaux.id",
+            ondelete="RESTRICT",
+        ),
+        nullable=True,
+        index=True,
+    )
+
     type_mouvement = Column(
         String(50),
         nullable=False,
@@ -79,4 +99,14 @@ class Movement(Base):
     user = relationship(
         "User",
         backref="movements",
+    )
+
+    bureau_origine = relationship(
+        "Bureau",
+        foreign_keys=[bureau_origine_id],
+    )
+
+    bureau_destination = relationship(
+        "Bureau",
+        foreign_keys=[bureau_destination_id],
     )

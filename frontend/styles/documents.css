@@ -267,7 +267,9 @@
 }
 
 .documents-table tbody tr:hover {
-    background: #fafcfd;
+    background: #eaf4f8;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
 }
 
 .reference {

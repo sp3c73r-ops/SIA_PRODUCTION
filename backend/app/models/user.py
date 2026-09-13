@@ -60,6 +60,16 @@ class User(Base):
         nullable=True,
     )
 
+    admin_circonscription_id = Column(
+        Integer,
+        ForeignKey(
+            "circonscriptions.id",
+            ondelete="RESTRICT",
+        ),
+        nullable=True,
+        index=True,
+    )
+
     permissions = Column(
         MutableList.as_mutable(JSONB),
         default=list,
@@ -69,6 +79,11 @@ class User(Base):
     bureau = relationship(
         "Bureau",
         back_populates="users",
+    )
+
+    admin_circonscription = relationship(
+        "Circonscription",
+        back_populates="admins",
     )
 
     documents = relationship(

@@ -25,6 +25,12 @@ from app.security.dependencies import (
     get_current_user,
 )
 
+from app.security.authorization import require_permission
+
+from app.security.permissions import PERMISSION_MOVEMENT_CREATE
+from app.security.permissions import PERMISSION_MOVEMENT_READ
+from app.security.permissions import PERMISSION_MOVEMENT_UPDATE
+
 
 router = APIRouter(
     prefix="/movements",
@@ -44,7 +50,7 @@ def create_movement(
     data: MovementCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_MOVEMENT_CREATE)
     ),
 ):
 
@@ -68,12 +74,13 @@ def create_movement(
 def list_movements(
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_MOVEMENT_READ)
     ),
 ):
 
     return movement_service.get_all(
-        db
+        db,
+        current_user,
     )
 
 
@@ -88,12 +95,13 @@ def list_movements(
 def list_active_movements(
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_MOVEMENT_READ)
     ),
 ):
 
     return movement_service.get_active(
-        db
+        db,
+        current_user,
     )
 
 
@@ -109,13 +117,14 @@ def list_document_movements(
     document_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_MOVEMENT_READ)
     ),
 ):
 
     return movement_service.get_by_document_id(
         db,
         document_id,
+        current_user,
     )
 
 
@@ -131,13 +140,14 @@ def list_user_movements(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_MOVEMENT_READ)
     ),
 ):
 
     return movement_service.get_by_user_id(
         db,
         user_id,
+        current_user,
     )
 
 
@@ -153,13 +163,14 @@ def get_movement(
     movement_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_MOVEMENT_READ)
     ),
 ):
 
     movement = movement_service.get_by_id(
         db,
         movement_id,
+        current_user,
     )
 
     if not movement:
@@ -184,13 +195,14 @@ def return_movement(
     movement_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        get_current_user
+        require_permission(PERMISSION_MOVEMENT_UPDATE)
     ),
 ):
 
     movement = movement_service.return_document(
         db,
         movement_id,
+        current_user,
     )
 
     if not movement:

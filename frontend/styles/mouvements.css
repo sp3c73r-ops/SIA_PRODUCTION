@@ -549,6 +549,137 @@
 }
 
 /* ============================================================
+   RECHERCHE DOCUMENT + BUREAU DESTINATION
+============================================================ */
+
+.doc-search-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.doc-search-input {
+    flex: 1;
+    border: 1px solid #d5dfe6;
+    border-radius: 7px;
+    padding: 11px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    color: #263f4f;
+    outline: none;
+}
+
+.doc-search-input:focus {
+    border-color: #1681aa;
+    box-shadow: 0 0 0 3px rgba(22, 129, 170, 0.1);
+}
+
+.doc-search-hint {
+    padding: 12px;
+    color: #738493;
+    font-size: 13px;
+    text-align: center;
+}
+
+.doc-search-empty {
+    padding: 16px;
+    color: #8493a0;
+    font-size: 13px;
+    text-align: center;
+    background: #f7fafc;
+    border: 1px dashed #dbe5eb;
+    border-radius: 7px;
+}
+
+.doc-search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    max-height: 240px;
+    overflow-y: auto;
+
+    margin-bottom: 18px;
+    padding: 4px;
+
+    border: 1px solid #e3ecf1;
+    border-radius: 7px;
+}
+
+.doc-search-result {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+
+    padding: 10px 12px;
+
+    border: 1px solid #e3ecf1;
+    border-radius: 7px;
+    background: white;
+
+    text-align: left;
+    cursor: pointer;
+
+    font-family: inherit;
+}
+
+.doc-search-result:hover {
+    background: #f0f8fb;
+    border-color: #1681aa;
+}
+
+.doc-search-result strong {
+    color: #173d57;
+    font-size: 13px;
+}
+
+.doc-search-result span {
+    color: #4c6575;
+    font-size: 12px;
+}
+
+.doc-search-result small {
+    color: #8493a0;
+    font-size: 11px;
+}
+
+.doc-selected {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+
+    padding: 14px;
+    margin-bottom: 18px;
+
+    background: #f0f8fb;
+    border: 1px solid #bcdcea;
+    border-radius: 7px;
+}
+
+.doc-selected-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.doc-selected-info strong {
+    color: #173d57;
+    font-size: 14px;
+}
+
+.doc-selected-info span {
+    color: #4c6575;
+    font-size: 12px;
+}
+
+.doc-selected-info small {
+    color: #6b8191;
+    font-size: 11px;
+}
+
+/* ============================================================
    RESPONSIVE
 ============================================================ */
 

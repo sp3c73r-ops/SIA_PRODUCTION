@@ -1,9 +1,12 @@
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 import logging
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import HTTPException
+from fastapi import UploadFile
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.document import Document
@@ -15,9 +18,13 @@ from app.repositories.document_field_repository import (
 from app.repositories.document_field_value_repository import (
     document_field_value_repository,
 )
+from app.services.attachment_service import attachment_service
 
 from app.repositories.document_repository import (
     document_repository
+)
+from app.repositories.bureau_repository import (
+    bureau_repository,
 )
 from app.security.authorization import has_effective_permission
 from app.security.authorization import is_admin
@@ -45,6 +52,17 @@ class DocumentService:
         "datetime": "value_datetime",
         "boolean": "value_boolean",
     }
+
+    @staticmethod
+    def _is_reference_archive_unique_violation(exc: IntegrityError) -> bool:
+        orig = getattr(exc, "orig", None)
+        diag = getattr(orig, "diag", None)
+
+        return (
+            getattr(orig, "sqlstate", None) == "23505"
+            and getattr(diag, "constraint_name", None)
+            == "documents_reference_archive_key"
+        )
 
     def _ensure_permission(
         self,
@@ -86,6 +104,16 @@ class DocumentService:
             )
 
         return user_bureau_id
+
+    def _ensure_user(self, current_user: User):
+        if is_admin(current_user):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Acces refuse: la creation de documents "
+                    "est reservee aux utilisateurs USER."
+                ),
+            )
 
     def _is_empty(self, value: Any) -> bool:
         if value is None:
@@ -317,7 +345,12 @@ class DocumentService:
         db: Session,
         data: DocumentCreate,
         current_user: User,
+        initial_file: UploadFile | None = None,
+        initial_files: list[UploadFile] | None = None,
     ):
+
+        # Un ADMIN ne cree jamais de document.
+        self._ensure_user(current_user)
 
         scope_bureau_id = self._get_scope_bureau_id(
             current_user,
@@ -329,6 +362,22 @@ class DocumentService:
             PERMISSION_DOCUMENT_CREATE,
             bureau_id=scope_bureau_id,
         )
+
+        if initial_files is not None:
+            files = list(initial_files)
+        elif initial_file is not None:
+            files = [initial_file]
+        else:
+            files = []
+
+        if not files:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Une première pièce jointe est obligatoire "
+                    "pour créer un document."
+                ),
+            )
 
         document_data = data.model_dump()
         custom_fields_payload = document_data.pop(
@@ -364,27 +413,77 @@ class DocumentService:
         )
 
         # Un USER ne peut créer que dans son propre bureau.
+        # La circonscription est dérivée de ce bureau et
+        # n'est jamais contrôlée par le payload client.
         if scope_bureau_id is not None:
             document_data["bureau_id"] = scope_bureau_id
+
+            bureau = bureau_repository.get_by_id(
+                db,
+                scope_bureau_id,
+            )
+
+            if bureau is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Bureau introuvable pour cet utilisateur.",
+                )
+
+            document_data["circonscription_id"] = (
+                bureau.circonscription_id
+            )
 
         document = Document(
             **document_data,
             encodeur_id=current_user.id,
         )
 
-        created_document = document_repository.create(
-            db,
-            document,
-        )
+        created_document = None
+        created_paths = []
 
-        self._apply_custom_fields(
-            db,
-            created_document,
-            custom_fields_payload,
-            active_fields,
-        )
+        try:
+            created_document = document_repository.create(
+                db,
+                document,
+                commit=False,
+            )
 
-        db.commit()
+            self._apply_custom_fields(
+                db,
+                created_document,
+                custom_fields_payload,
+                active_fields,
+            )
+
+            for file in files:
+                attachment_service.create(
+                    db,
+                    created_document.id,
+                    file,
+                    current_user,
+                    check_permission=False,
+                    commit=False,
+                    created_paths=created_paths,
+                )
+
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+
+            for attachment_path in created_paths:
+                if attachment_path.exists():
+                    attachment_path.unlink()
+
+            if (
+                isinstance(exc, IntegrityError)
+                and self._is_reference_archive_unique_violation(exc)
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Cette référence d'archive existe déjà.",
+                ) from exc
+
+            raise
 
         return document_repository.get_by_id(
             db,
@@ -447,6 +546,15 @@ class DocumentService:
             bureau_id=scope_bureau_id,
         )
 
+        # Un ADMIN recherche uniquement dans sa circonscription.
+        scope_circonscription_id = None
+        if is_admin(current_user):
+            scope_circonscription_id = getattr(
+                current_user,
+                "admin_circonscription_id",
+                None,
+            )
+
         return document_repository.search(
             db=db,
             bureau_id=scope_bureau_id,
@@ -457,6 +565,7 @@ class DocumentService:
             type_document_id=type_document_id,
             phase_id=phase_id,
             circonscription_id=circonscription_id,
+            scope_circonscription_id=scope_circonscription_id,
             date_debut=date_debut,
             date_fin=date_fin,
         )
@@ -522,6 +631,44 @@ class DocumentService:
             current_user,
         )
 
+        document = None
+
+        if is_admin(current_user):
+            admin_circonscription_id = getattr(
+                current_user,
+                "admin_circonscription_id",
+                None,
+            )
+
+            if admin_circonscription_id is None:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Acces refuse: circonscription non assignee.",
+                )
+
+            document = document_repository.get_by_id(
+                db,
+                document_id,
+            )
+
+            if document is None:
+                return None
+
+            document_bureau = bureau_repository.get_by_id(
+                db,
+                document.bureau_id,
+            )
+
+            if (
+                document_bureau is None
+                or document_bureau.circonscription_id
+                != admin_circonscription_id
+            ):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Acces interdit a ce document.",
+                )
+
         self._ensure_permission(
             db,
             current_user,
@@ -530,11 +677,12 @@ class DocumentService:
             document_id=document_id,
         )
 
-        document = document_repository.get_by_id(
-            db,
-            document_id,
-            bureau_id=scope_bureau_id,
-        )
+        if document is None:
+            document = document_repository.get_by_id(
+                db,
+                document_id,
+                bureau_id=scope_bureau_id,
+            )
 
         if not document:
             if scope_bureau_id is not None:
@@ -564,6 +712,14 @@ class DocumentService:
             raise HTTPException(
                 status_code=400,
                 detail="custom_fields doit être un objet clé/valeur.",
+            )
+
+        # Un USER ne peut pas modifier la circonscription:
+        # elle reste celle dérivée du bureau du document.
+        if scope_bureau_id is not None:
+            update_data.pop(
+                "circonscription_id",
+                None,
             )
 
         for key, value in update_data.items():

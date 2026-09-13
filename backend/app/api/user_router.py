@@ -16,6 +16,7 @@ from app.security.authorization import require_permission
 from app.security.permissions import PERMISSION_USER_ASSIGN_PERMISSION
 from app.security.permissions import PERMISSION_USER_ASSIGN_ROLE
 from app.security.permissions import PERMISSION_USER_CREATE
+from app.security.permissions import PERMISSION_USER_DISABLE
 from app.security.permissions import PERMISSION_USER_READ
 from app.security.permissions import PERMISSION_USER_REVOKE_PERMISSION
 from app.security.permissions import PERMISSION_USER_UPDATE
@@ -67,6 +68,20 @@ def create_user(
     ),
 ):
     return user_service.create_by_admin(db, data, current_user)
+
+
+@router.patch(
+    "/{user_id}/disable",
+    response_model=UserResponse,
+)
+def disable_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_permission(PERMISSION_USER_DISABLE)
+    ),
+):
+    return user_service.disable(db, user_id, current_user)
 
 
 @router.post(

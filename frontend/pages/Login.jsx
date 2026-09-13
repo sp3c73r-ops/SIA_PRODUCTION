@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/login.css";
 import { login } from "../services/authService";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function Login() {
     const navigate = useNavigate();
+    const { refreshUser } = useAuth();
 
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -29,6 +31,8 @@ export default function Login() {
                 username.trim(),
                 password
             );
+
+            await refreshUser({ isNewLogin: true });
 
             // Connexion réussie
             navigate("/", { replace: true });

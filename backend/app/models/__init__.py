@@ -8,3 +8,4 @@ from app.models.document_field import DocumentField
 from app.models.document_field_value import DocumentFieldValue
 from app.models.bureau import Bureau
 from app.models.permission_request import PermissionRequest
+from app.models.audit_log import AuditLog

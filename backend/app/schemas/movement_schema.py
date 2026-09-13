@@ -12,6 +12,8 @@ class MovementCreate(BaseModel):
 
     document_id: int
 
+    bureau_destination_id: int
+
     type_mouvement: str
 
     motif: Optional[str] = None
@@ -28,6 +30,10 @@ class MovementResponse(BaseModel):
     document_id: int
 
     user_id: int
+
+    bureau_origine_id: Optional[int] = None
+
+    bureau_destination_id: Optional[int] = None
 
     type_mouvement: str
 

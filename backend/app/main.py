@@ -8,6 +8,7 @@ from app.api.document_type_router import router as document_type_router
 from app.api.circonscription_router import (
     router as circonscription_router,
 )
+from app.api.bureau_router import router as bureau_router
 from app.api.movement_router import router as movement_router
 from app.api.user_router import router as user_router
 from app.api.auth_router import router as auth_router
@@ -61,6 +62,7 @@ app.include_router(document_router)
 app.include_router(document_type_router)
 app.include_router(phase_router)
 app.include_router(circonscription_router)
+app.include_router(bureau_router)
 app.include_router(user_router)
 app.include_router(auth_router)
 app.include_router(attachment_router)

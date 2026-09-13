@@ -216,18 +216,42 @@ export default function Dashboard() {
 
         try {
 
-            return new Date(
-                value
-            ).toLocaleDateString(
-                "fr-FR"
-            );
+            const date = new Date(value);
+
+            return Number.isNaN(date.getTime())
+                ? "—"
+                : date.toLocaleDateString("fr-FR");
 
         } catch {
 
-            return value;
+            return "—";
 
         }
 
+    };
+
+    const formatDateTime = (value) => {
+        if (!value) {
+            return "—";
+        }
+
+        const date = new Date(value);
+
+        return Number.isNaN(date.getTime())
+            ? "—"
+            : date.toLocaleString("fr-FR", {
+                dateStyle: "short",
+                timeStyle: "short",
+            });
+    };
+
+    const getCreatorName = (document) => {
+        const encoder = document.encodeur;
+        const fullName = [encoder?.prenom, encoder?.nom]
+            .filter((value) => value && value.trim())
+            .join(" ");
+
+        return fullName || encoder?.username || "—";
     };
 
 
@@ -763,7 +787,15 @@ export default function Dashboard() {
                                     </th>
 
                                     <th>
-                                        Date
+                                        Créateur
+                                    </th>
+
+                                    <th>
+                                        Date de traitement
+                                    </th>
+
+                                    <th>
+                                        Date de création
                                     </th>
 
                                 </tr>
@@ -848,15 +880,25 @@ export default function Dashboard() {
 
                                             </td>
 
-
                                             <td>
 
                                                 {
-                                                    formatDate(
-                                                        document.date_creation
-                                                    )
+                                                    getCreatorName(document)
                                                 }
 
+                                            </td>
+
+
+                                            <td>
+                                                {formatDate(
+                                                    document.date_creation
+                                                )}
+                                            </td>
+
+                                            <td>
+                                                {formatDateTime(
+                                                    document.created_at
+                                                )}
                                             </td>
 
                                         </tr>

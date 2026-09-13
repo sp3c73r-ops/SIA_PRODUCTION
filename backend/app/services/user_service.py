@@ -8,6 +8,7 @@ from app.models.user import USER_ROLES
 from app.repositories.user_repository import user_repository
 from app.security.authorization import is_admin
 from app.security.permissions import is_known_permission
+from app.security.permissions import PERMISSION_USER_DISABLE
 from app.security.password import hash_password
 
 
@@ -74,6 +75,7 @@ class UserService:
         db,
         role: str,
         bureau_id: int | None,
+        current_user=None,
     ):
         if role not in USER_ROLES:
             raise HTTPException(
@@ -97,17 +99,33 @@ class UserService:
             return
 
         if bureau_id is not None:
-            bureau_exists = (
+            bureau = (
                 db.query(Bureau)
                 .filter(Bureau.id == bureau_id)
                 .first()
             )
 
-            if bureau_exists is None:
+            if bureau is None:
                 raise HTTPException(
                     status_code=400,
                     detail="Le bureau_id fourni est introuvable.",
                 )
+
+            if current_user is not None:
+                if current_user.admin_circonscription_id is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="L'administrateur doit être rattaché à une circonscription.",
+                    )
+
+                if bureau.circonscription_id != current_user.admin_circonscription_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "Le bureau sélectionné n'appartient pas à la circonscription "
+                            "de l'administrateur."
+                        ),
+                    )
 
     def get_all(self, db, current_user):
         self._ensure_admin(current_user)
@@ -125,6 +143,69 @@ class UserService:
             )
 
         return user
+
+    def disable(self, db, user_id: int, current_user):
+        self._ensure_admin(current_user)
+
+        permissions = getattr(current_user, "permissions", None) or []
+        if PERMISSION_USER_DISABLE not in permissions:
+            raise HTTPException(
+                status_code=403,
+                detail="Acces refuse: permission insuffisante.",
+            )
+
+        if user_id == current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Un administrateur ne peut pas se désactiver.",
+            )
+
+        admin_circonscription_id = getattr(
+            current_user,
+            "admin_circonscription_id",
+            None,
+        )
+        if admin_circonscription_id is None:
+            raise HTTPException(
+                status_code=403,
+                detail="Acces refuse: circonscription non assignee.",
+            )
+
+        user = self.repository.get_by_id(db, user_id)
+        if user is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Utilisateur introuvable.",
+            )
+
+        if user.role != USER_ROLE_USER:
+            raise HTTPException(
+                status_code=403,
+                detail="Seul un utilisateur USER peut être désactivé.",
+            )
+
+        if user.bureau_id is None:
+            raise HTTPException(
+                status_code=403,
+                detail="L'utilisateur ciblé n'est rattaché à aucun bureau.",
+            )
+
+        bureau = (
+            db.query(Bureau)
+            .filter(Bureau.id == user.bureau_id)
+            .first()
+        )
+        if bureau is None or bureau.circonscription_id != admin_circonscription_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Acces interdit a cet utilisateur.",
+            )
+
+        if not user.actif:
+            return user
+
+        user.actif = False
+        return self.repository.update(db, user)
 
     def create(self, db, data):
         raise HTTPException(
@@ -145,6 +226,7 @@ class UserService:
             db,
             data.role,
             data.bureau_id,
+            current_user,
         )
 
         permissions = self._normalize_permissions(

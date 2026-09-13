@@ -51,4 +51,10 @@ def get_current_user(
             detail="Utilisateur introuvable",
         )
 
+    if not user.actif:
+        raise HTTPException(
+            status_code=401,
+            detail="Utilisateur inactif",
+        )
+
     return user

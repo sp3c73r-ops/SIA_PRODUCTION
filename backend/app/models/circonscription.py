@@ -11,6 +11,16 @@ class Circonscription(Base):
 
     nom = Column(String(150), unique=True)
 
+    bureaux = relationship(
+        "Bureau",
+        back_populates="circonscription",
+    )
+
+    admins = relationship(
+        "User",
+        back_populates="admin_circonscription",
+    )
+
     documents = relationship(
         "Document",
         back_populates="circonscription",

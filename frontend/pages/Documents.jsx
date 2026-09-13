@@ -3,7 +3,7 @@ import api from "../api/api";
 
 import {
     getDocuments,
-    createDocument,
+    createDocumentWithAttachments,
     updateDocument,
     deleteDocument,
 } from "../services/documentService";
@@ -19,6 +19,15 @@ import {
     downloadAttachment,
 } from "../services/attachmentService";
 
+import DocumentDetails from "../components/DocumentDetails";
+
+import {
+    createPermissionRequest,
+    getMyPermissionRequests,
+} from "../services/permissionRequestService";
+
+import { getCurrentUser } from "../services/authService";
+
 import "../styles/documents.css";
 
 
@@ -26,6 +35,9 @@ const CREATE_NATURE_OPTION = "__create_new_nature__";
 
 
 export default function Documents() {
+
+    const currentUser = getCurrentUser();
+    const isAdmin = currentUser?.role === "ADMIN";
 
     const [documents, setDocuments] = useState([]);
 
@@ -51,6 +63,7 @@ export default function Documents() {
     const [uploading, setUploading] = useState(false);
 
     const [error, setError] = useState("");
+    const [formError, setFormError] = useState("");
     const [success, setSuccess] = useState("");
 
     const [showForm, setShowForm] = useState(false);
@@ -77,6 +90,9 @@ export default function Documents() {
         useState(false);
 
     const [selectedDocumentForAttachments, setSelectedDocumentForAttachments] =
+        useState(null);
+
+    const [selectedDocumentForDetails, setSelectedDocumentForDetails] =
         useState(null);
 
     const [attachments, setAttachments] = useState([]);
@@ -108,6 +124,19 @@ export default function Documents() {
         useState(false);
 
     // ============================================================
+    // DEMANDE D'AUTORISATION DE MODIFICATION (USER)
+    // ============================================================
+
+    const [showAuthRequestModal, setShowAuthRequestModal] =
+        useState(false);
+
+    const [authRequestDocument, setAuthRequestDocument] =
+        useState(null);
+
+    const [sendingAuthRequest, setSendingAuthRequest] =
+        useState(false);
+
+    // ============================================================
     // FORMULAIRE
     // ============================================================
 
@@ -129,6 +158,53 @@ export default function Documents() {
 
     const [customFieldForm, setCustomFieldForm] =
         useState({});
+
+    const formatApiError = (err, fallback) => {
+        const detail = err?.response?.data?.detail;
+
+        if (typeof detail === "string" && detail.trim()) {
+            return detail;
+        }
+
+        if (Array.isArray(detail)) {
+            const messages = detail
+                .map((item) => {
+                    if (typeof item === "string") {
+                        return item;
+                    }
+
+                    if (item?.msg) {
+                        const location = Array.isArray(item.loc)
+                            ? item.loc.filter(Boolean).join(" > ")
+                            : "";
+
+                        return location
+                            ? `${location} : ${item.msg}`
+                            : item.msg;
+                    }
+
+                    return null;
+                })
+                .filter(Boolean);
+
+            if (messages.length > 0) {
+                return messages.join("\n");
+            }
+        }
+
+        if (detail && typeof detail === "object") {
+            const objectMessage =
+                detail.message ||
+                detail.msg ||
+                detail.error;
+
+            if (typeof objectMessage === "string" && objectMessage.trim()) {
+                return objectMessage;
+            }
+        }
+
+        return fallback;
+    };
 
     // ============================================================
     // CHARGEMENT DES DOCUMENTS
@@ -563,6 +639,7 @@ export default function Documents() {
         resetForm();
 
         setError("");
+        setFormError("");
 
         setSuccess("");
 
@@ -577,12 +654,168 @@ export default function Documents() {
     };
 
     // ============================================================
+    // AUTORISATION DE MODIFICATION (USER)
+    // ============================================================
+
+    const hasValidUpdateAuthorization = async (
+        documentId
+    ) => {
+
+        const currentUser = getCurrentUser();
+
+        if (!currentUser) {
+            return false;
+        }
+
+        try {
+
+            const response =
+                await getMyPermissionRequests();
+
+            const requests =
+                response?.data || [];
+
+            const now = new Date();
+
+            return requests.some(
+                (request) =>
+                    request.user_id ===
+                        currentUser.id &&
+                    request.document_id ===
+                        documentId &&
+                    request.permission ===
+                        "document.update" &&
+                    request.status === "APPROVED" &&
+                    request.expires_at &&
+                    new Date(request.expires_at) >
+                        now
+            );
+
+        } catch (err) {
+
+            console.error(
+                "Erreur verification autorisation :",
+                err
+            );
+
+            return false;
+
+        }
+
+    };
+
+    const handleEditRequest = async (document) => {
+
+        setError("");
+
+        setSuccess("");
+
+        const currentUser = getCurrentUser();
+
+        if (currentUser?.role === "ADMIN") {
+            setError(
+                "Un administrateur ne peut pas modifier un document."
+            );
+            return;
+        }
+
+        // USER : verifier une autorisation temporaire valide
+        const authorized =
+            await hasValidUpdateAuthorization(
+                document.id
+            );
+
+        if (authorized) {
+            openEditForm(document);
+            return;
+        }
+
+        // Sinon : popup de demande d'autorisation
+        setAuthRequestDocument(document);
+
+        setShowAuthRequestModal(true);
+
+    };
+
+    const closeAuthRequestModal = () => {
+
+        if (sendingAuthRequest) {
+            return;
+        }
+
+        setShowAuthRequestModal(false);
+
+        setAuthRequestDocument(null);
+
+    };
+
+    const confirmAuthRequest = async () => {
+
+        if (!authRequestDocument) {
+            return;
+        }
+
+        try {
+
+            setSendingAuthRequest(true);
+
+            setError("");
+
+            setSuccess("");
+
+            await createPermissionRequest({
+                permission: "document.update",
+                document_id: authRequestDocument.id,
+                reason:
+                    "Demande d'autorisation pour modifier le document",
+            });
+
+            setShowAuthRequestModal(false);
+
+            setAuthRequestDocument(null);
+
+            setSuccess(
+                "Votre demande d'autorisation a été envoyée à l'administrateur."
+            );
+
+        } catch (err) {
+
+            if (err.response?.status === 409) {
+                setError(
+                    "Une demande d'autorisation pour ce dossier est déjà en attente."
+                );
+            } else if (
+                err.response?.data?.detail
+            ) {
+                setError(
+                    err.response.data.detail
+                );
+            } else {
+                setError(
+                    "Impossible d'envoyer la demande d'autorisation. Vérifiez que le serveur est démarré."
+                );
+            }
+
+            setShowAuthRequestModal(false);
+
+            setAuthRequestDocument(null);
+
+        } finally {
+
+            setSendingAuthRequest(false);
+
+        }
+
+    };
+
+    // ============================================================
     // OUVRIR MODIFICATION
     // ============================================================
 
     const openEditForm = (document) => {
 
         setError("");
+        setFormError("");
 
         setSuccess("");
 
@@ -801,6 +1034,19 @@ export default function Documents() {
 
     };
 
+    const openDocumentDetails = (document) => {
+        setSelectedDocumentForDetails({
+            ...document,
+            type_document: getTypeName(document.type_document_id),
+            phase: getNatureName(document.phase_id),
+            circonscription: getCircoName(document.circonscription_id),
+        });
+    };
+
+    const closeDocumentDetails = () => {
+        setSelectedDocumentForDetails(null);
+    };
+
     // ============================================================
     // AJOUTER LA PIECE JOINTE APRES CREATION / MODIFICATION
     // ============================================================
@@ -879,31 +1125,39 @@ export default function Documents() {
         e.preventDefault();
 
         setError("");
+        setFormError("");
 
         setSuccess("");
+        const requiredFields = [
+            [form.reference_archive.trim(), "Référence d'archive"],
+            [form.nom_document.trim(), "Nom du document"],
+            [form.date_creation, "Date"],
+            [form.type_document_id, "Type de document"],
+            [form.phase_id, "Nature du document"],
+            [form.circonscription_id, "Circonscription"],
+        ];
 
-        if (
+        const missingField = requiredFields.find(
+            ([value]) => !value
+        );
 
-            !form.reference_archive.trim() ||
-
-            !form.nom_document.trim() ||
-
-            !form.date_creation ||
-
-            !form.type_document_id ||
-
-            !form.phase_id ||
-
-            !form.circonscription_id
-
-        ) {
-
-            setError(
-                "Veuillez remplir tous les champs obligatoires."
+        if (missingField) {
+            setFormError(
+                `Le champ ${missingField[1]} est obligatoire.`
             );
 
             return;
+        }
 
+        if (
+            editingId === null &&
+            selectedFiles.length === 0
+        ) {
+            setFormError(
+                "Une pièce jointe est obligatoire pour créer un document."
+            );
+
+            return;
         }
 
         for (const field of activeCustomFields) {
@@ -927,7 +1181,7 @@ export default function Documents() {
                 String(value).trim() === ""
             ) {
 
-                setError(
+                setFormError(
                     `Le champ personnalisé "${field.label}" est obligatoire.`
                 );
 
@@ -1030,13 +1284,11 @@ export default function Documents() {
             // CREATION
             // ====================================================
 
-            const response =
-                await createDocument(
-                    payload
-                );
-
             const newDocument =
-                response?.data || response;
+                await createDocumentWithAttachments(
+                    payload,
+                    selectedFiles
+                );
 
             if (!newDocument?.id) {
 
@@ -1050,15 +1302,7 @@ export default function Documents() {
             // DOCUMENT CREE
             // ====================================================
 
-            setCreatedDocument(
-                newDocument
-            );
-
-            setSelectedFiles([]);
-
-            setShowForm(false);
-
-            setShowAttachmentStep(true);
+            await finishCreation();
 
             setSuccess(
                 "Document créé avec succès."
@@ -1071,10 +1315,11 @@ export default function Documents() {
                 err
             );
 
-            setError(
-                err.response?.data?.detail ||
-                err.message ||
-                "Impossible d'enregistrer le document."
+            setFormError(
+                formatApiError(
+                    err,
+                    "Impossible de créer le document. Vérifiez votre connexion ou réessayez."
+                )
             );
 
         } finally {
@@ -1172,6 +1417,42 @@ export default function Documents() {
 
         return item?.nom || "—";
 
+    };
+
+    const getCreatorName = (document) => {
+        const encoder = document.encodeur;
+        const fullName = [encoder?.prenom, encoder?.nom]
+            .filter((value) => value && value.trim())
+            .join(" ");
+
+        return fullName || encoder?.username || "—";
+    };
+
+    const formatDate = (value) => {
+        if (!value) {
+            return "—";
+        }
+
+        const date = new Date(value);
+
+        return Number.isNaN(date.getTime())
+            ? "—"
+            : date.toLocaleDateString("fr-FR");
+    };
+
+    const formatDateTime = (value) => {
+        if (!value) {
+            return "—";
+        }
+
+        const date = new Date(value);
+
+        return Number.isNaN(date.getTime())
+            ? "—"
+            : date.toLocaleString("fr-FR", {
+                dateStyle: "short",
+                timeStyle: "short",
+            });
     };
 
     // ============================================================
@@ -1552,18 +1833,20 @@ export default function Documents() {
 
                 </div>
 
-                <button
-                    className="btn-primary"
-                    onClick={openCreateForm}
-                >
+                {!isAdmin && (
+                    <button
+                        className="btn-primary"
+                        onClick={openCreateForm}
+                    >
 
-                    <span>
-                        ＋
-                    </span>
+                        <span>
+                            ＋
+                        </span>
 
-                    Nouveau document
+                        Nouveau document
 
-                </button>
+                    </button>
+                )}
 
             </div>
 
@@ -1571,7 +1854,12 @@ export default function Documents() {
                 MESSAGES
             ================================================== */}
 
-            {error && (
+            {error &&
+                !showForm &&
+                !showAttachmentStep &&
+                !showAttachments &&
+                !selectedDocumentForDetails &&
+                !showAuthRequestModal && (
 
                 <div className="alert alert-error">
                     {error}
@@ -1965,12 +2253,14 @@ export default function Documents() {
                             enregistré dans le SIA.
                         </p>
 
-                        <button
-                            className="btn-primary"
-                            onClick={openCreateForm}
-                        >
-                            ＋ Ajouter le premier document
-                        </button>
+                        {!isAdmin && (
+                            <button
+                                className="btn-primary"
+                                onClick={openCreateForm}
+                            >
+                                ＋ Ajouter le premier document
+                            </button>
+                        )}
 
                     </div>
 
@@ -2031,7 +2321,15 @@ export default function Documents() {
                                     </th>
 
                                     <th>
-                                        Date
+                                        Créateur
+                                    </th>
+
+                                    <th>
+                                        Date de traitement
+                                    </th>
+
+                                    <th>
+                                        Date de création
                                     </th>
 
                                     <th>
@@ -2051,6 +2349,23 @@ export default function Documents() {
                                             key={
                                                 document.id
                                             }
+                                            onClick={() =>
+                                                openDocumentDetails(
+                                                    document
+                                                )
+                                            }
+                                            tabIndex={0}
+                                            onKeyDown={(event) => {
+                                                if (
+                                                    event.key === "Enter" ||
+                                                    event.key === " "
+                                                ) {
+                                                    event.preventDefault();
+                                                    openDocumentDetails(
+                                                        document
+                                                    );
+                                                }
+                                            }}
                                         >
 
                                             <td>
@@ -2150,62 +2465,71 @@ export default function Documents() {
                                             <td>
 
                                                 {
-                                                    document.date_creation
-                                                        ? new Date(
-                                                            document.date_creation
-                                                        ).toLocaleDateString(
-                                                            "fr-FR"
-                                                        )
-                                                        : "—"
+                                                    getCreatorName(document)
                                                 }
 
+                                            </td>
+
+                                            <td>
+                                                {formatDate(
+                                                    document.date_creation
+                                                )}
+                                            </td>
+
+                                            <td>
+                                                {formatDateTime(
+                                                    document.created_at
+                                                )}
                                             </td>
 
                                             <td>
 
                                                 <div className="action-buttons">
 
-                                                    {/* MODIFIER */}
-
-                                                    <button
-                                                        className="btn-action btn-edit"
-                                                        title="Modifier"
-                                                        onClick={() =>
-                                                            openEditForm(
-                                                                document
-                                                            )
-                                                        }
-                                                    >
-                                                        ✏️
-                                                    </button>
+                                                    {!isAdmin && (
+                                                        <button
+                                                            className="btn-action btn-edit"
+                                                            title="Modifier"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                handleEditRequest(
+                                                                    document
+                                                                );
+                                                            }}
+                                                        >
+                                                            ✏️
+                                                        </button>
+                                                    )}
 
                                                     {/* PIECES JOINTES */}
 
                                                     <button
                                                         className="btn-action"
                                                         title="Pièces jointes"
-                                                        onClick={() =>
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
                                                             openAttachments(
                                                                 document
-                                                            )
-                                                        }
+                                                            );
+                                                        }}
                                                     >
                                                         📎
                                                     </button>
 
-                                                    {/* SUPPRIMER */}
-
-                                                    <button
-                                                        className="btn-action btn-delete"
-                                                        title="Supprimer"
-                                                        onClick={() =>
-                                                            handleDelete(
-                                                                document
-                                                            )
-                                                        }
-                                                    >
-                                                        🗑️
-                                                    </button>
+                                                    {!isAdmin && (
+                                                        <button
+                                                            className="btn-action btn-delete"
+                                                            title="Supprimer"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                handleDelete(
+                                                                    document
+                                                                );
+                                                            }}
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    )}
 
                                                 </div>
 
@@ -2689,6 +3013,69 @@ export default function Documents() {
 
                                 })}
 
+                                {!editingId && (
+
+                                    <div className="form-field form-field-full">
+
+                                        <label>
+                                            Pièce(s) jointe(s) obligatoire(s) *
+                                        </label>
+
+                                        <input
+                                            type="file"
+                                            multiple
+                                            accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.doc,.docx"
+                                            onChange={handleFileChange}
+                                            disabled={saving}
+                                        />
+
+                                        <small
+                                            style={{
+                                                color: "#64748b",
+                                                marginTop: "6px",
+                                                display: "block",
+                                            }}
+                                        >
+                                            Vous pouvez sélectionner plusieurs fichiers.
+                                        </small>
+
+                                        {selectedFiles.length > 0 && (
+
+                                            <div
+                                                style={{
+                                                    marginTop: "10px",
+                                                    color: "#475569",
+                                                }}
+                                            >
+                                                {selectedFiles.map((file) => (
+                                                    <div
+                                                        key={`${file.name}-${file.size}-${file.lastModified}-${file.type}`}
+                                                    >
+                                                        {file.name}
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                        )}
+
+                                        {formError && (
+                                            <div
+                                                className="alert alert-error"
+                                                role="alert"
+                                                style={{
+                                                    marginTop: "12px",
+                                                    marginBottom: 0,
+                                                    whiteSpace: "pre-line",
+                                                }}
+                                            >
+                                                {formError}
+                                            </div>
+                                        )}
+
+                                    </div>
+
+                                )}
+
                                 {/* REMARQUE */}
 
                                 <div className="form-field form-field-full">
@@ -3016,6 +3403,112 @@ export default function Documents() {
                 MODAL AJOUT NATURE
             ================================================== */}
 
+            {/* ==================================================
+                DEMANDE D'AUTORISATION DE MODIFICATION (USER)
+            ================================================== */}
+
+            {showAuthRequestModal && (
+
+                <div className="modal-overlay">
+
+                    <div className="document-modal">
+
+                        <div className="modal-header">
+
+                            <div>
+
+                                <h2>
+                                    Demande d'autorisation
+                                </h2>
+
+                                <p>
+                                    {
+                                        authRequestDocument?.nom_document
+                                    }
+                                </p>
+
+                            </div>
+
+                            <button
+                                className="modal-close"
+                                onClick={
+                                    closeAuthRequestModal
+                                }
+                                disabled={
+                                    sendingAuthRequest
+                                }
+                            >
+                                ×
+                            </button>
+
+                        </div>
+
+                        <div
+                            style={{
+                                padding: "24px",
+                            }}
+                        >
+
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: "15px",
+                                    color: "#334155",
+                                    lineHeight: 1.6,
+                                }}
+                            >
+                                Vous devez obtenir
+                                l'autorisation de
+                                l'administrateur pour
+                                modifier ce dossier.
+                                Voulez-vous envoyer une
+                                demande d'autorisation ?
+                            </p>
+
+                            <div className="modal-footer">
+
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={
+                                        closeAuthRequestModal
+                                    }
+                                    disabled={
+                                        sendingAuthRequest
+                                    }
+                                >
+                                    Annuler
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={
+                                        confirmAuthRequest
+                                    }
+                                    disabled={
+                                        sendingAuthRequest
+                                    }
+                                >
+                                    {sendingAuthRequest
+                                        ? "Envoi..."
+                                        : "Confirmer"}
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            )}
+
+            {/* ==================================================
+                NOUVELLE NATURE
+            ================================================== */}
+
             {showNatureModal && (
 
                 <div className="modal-overlay">
@@ -3029,7 +3522,6 @@ export default function Documents() {
                                 <h2>
                                     Nouvelle nature
                                 </h2>
-
                                 <p>
                                     Ajouter une nouvelle nature de document.
                                 </p>
@@ -3115,6 +3607,13 @@ export default function Documents() {
 
                 </div>
 
+            )}
+
+            {selectedDocumentForDetails && (
+                <DocumentDetails
+                    document={selectedDocumentForDetails}
+                    onClose={closeDocumentDetails}
+                />
             )}
 
             {/* ==================================================
@@ -3206,15 +3705,16 @@ export default function Documents() {
                                 AJOUTER UNE NOUVELLE PIECE JOINTE
                             ================================================== */}
 
-                            <div
-                                style={{
-                                    marginBottom: "22px",
-                                    padding: "18px",
-                                    borderRadius: "10px",
-                                    background: "#f8fafc",
-                                    border: "1px solid #e2e8f0",
-                                }}
-                            >
+                            {!isAdmin && (
+                                <div
+                                    style={{
+                                        marginBottom: "22px",
+                                        padding: "18px",
+                                        borderRadius: "10px",
+                                        background: "#f8fafc",
+                                        border: "1px solid #e2e8f0",
+                                    }}
+                                >
 
                                 <div
                                     style={{
@@ -3287,7 +3787,8 @@ export default function Documents() {
 
                                 )}
 
-                            </div>
+                                </div>
+                            )}
 
                             {/* ==================================================
                                 CHARGEMENT
@@ -3430,18 +3931,20 @@ export default function Documents() {
                                                         Ouvrir
                                                     </button>
 
-                                                    <button
-                                                        type="button"
-                                                        className="btn-action btn-delete"
-                                                        title="Supprimer"
-                                                        onClick={() =>
-                                                            handleDeleteAttachment(
-                                                                attachment
-                                                            )
-                                                        }
-                                                    >
-                                                        🗑️
-                                                    </button>
+                                                    {!isAdmin && (
+                                                        <button
+                                                            type="button"
+                                                            className="btn-action btn-delete"
+                                                            title="Supprimer"
+                                                            onClick={() =>
+                                                                handleDeleteAttachment(
+                                                                    attachment
+                                                                )
+                                                            }
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    )}
 
                                                 </div>
 

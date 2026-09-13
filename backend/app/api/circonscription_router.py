@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
+from app.models.user import User
+from app.security.dependencies import get_current_user
 from app.schemas.circonscription_schema import (
     CirconscriptionCreate,
     CirconscriptionResponse,
@@ -24,8 +26,9 @@ router = APIRouter(
 )
 def get_circonscriptions(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    return circonscription_service.repository.get_all(db)
+    return circonscription_service.get_all(db, current_user)
 
 
 @router.post(
@@ -35,5 +38,6 @@ def get_circonscriptions(
 def create_circonscription(
     data: CirconscriptionCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    return circonscription_service.create(db, data)
+    return circonscription_service.create(db, data, current_user)

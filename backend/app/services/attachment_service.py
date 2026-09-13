@@ -121,19 +121,23 @@ class AttachmentService:
         document_id: int,
         file: UploadFile,
         current_user: User,
+        check_permission: bool = True,
+        commit: bool = True,
+        created_paths: list[Path] | None = None,
     ):
 
         scope_bureau_id = self._get_scope_bureau_id(
             current_user,
         )
 
-        self._ensure_permission(
-            db,
-            current_user,
-            PERMISSION_ATTACHMENT_CREATE,
-            bureau_id=scope_bureau_id,
-            document_id=document_id,
-        )
+        if check_permission:
+            self._ensure_permission(
+                db,
+                current_user,
+                PERMISSION_ATTACHMENT_CREATE,
+                bureau_id=scope_bureau_id,
+                document_id=document_id,
+            )
 
         self._get_document_in_scope(
             db,
@@ -179,6 +183,9 @@ class AttachmentService:
 
             buffer.write(content)
 
+        if created_paths is not None:
+            created_paths.append(file_path)
+
         attachment = DocumentAttachment(
             document_id=document_id,
             nom_original=original_name,
@@ -190,10 +197,22 @@ class AttachmentService:
             taille=len(content),
         )
 
-        return attachment_repository.create(
-            db,
-            attachment,
-        )
+        try:
+            if commit:
+                return attachment_repository.create(
+                    db,
+                    attachment,
+                )
+
+            return attachment_repository.create(
+                db,
+                attachment,
+                commit=False,
+            )
+        except Exception:
+            if file_path.exists():
+                os.remove(file_path)
+            raise
 
 
     # ============================================================

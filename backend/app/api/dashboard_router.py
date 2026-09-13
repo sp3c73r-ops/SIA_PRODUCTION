@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, true
+from sqlalchemy.orm import Session, selectinload
 
 from app.database.session import get_db
 
@@ -9,8 +9,12 @@ from app.models.attachment import DocumentAttachment
 from app.models.document_type import DocumentType
 from app.models.phase import Phase
 from app.models.circonscription import Circonscription
+from app.schemas.document_schema import DocumentEncoderResponse
 
 from app.security.dependencies import get_current_user
+from app.security.authorization import has_effective_permission
+from app.security.authorization import is_admin
+from app.security.permissions import PERMISSION_DASHBOARD_READ
 from app.models.user import User
 
 
@@ -20,11 +24,50 @@ router = APIRouter(
 )
 
 
+def _get_scope_bureau_id(current_user: User) -> int | None:
+    if is_admin(current_user):
+        return None
+
+    bureau_id = getattr(current_user, "bureau_id", None)
+    if bureau_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Acces refuse: bureau non assigne.",
+        )
+
+    return bureau_id
+
+
+def _ensure_dashboard_access(
+    db: Session,
+    current_user: User,
+    bureau_id: int | None,
+):
+    if not has_effective_permission(
+        db,
+        current_user,
+        PERMISSION_DASHBOARD_READ,
+        bureau_id=bureau_id,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Acces refuse: permission insuffisante.",
+        )
+
+
 @router.get("/stats")
 def get_dashboard_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    scope_bureau_id = _get_scope_bureau_id(current_user)
+    _ensure_dashboard_access(db, current_user, scope_bureau_id)
+
+    document_scope = (
+        Document.bureau_id == scope_bureau_id
+        if scope_bureau_id is not None
+        else true()
+    )
 
     # ============================================================
     # DOCUMENTS ACTIFS
@@ -33,7 +76,8 @@ def get_dashboard_stats(
     total_documents = (
         db.query(func.count(Document.id))
         .filter(
-            Document.is_deleted == False
+            Document.is_deleted == False,
+            document_scope,
         )
         .scalar()
         or 0
@@ -47,6 +91,14 @@ def get_dashboard_stats(
     total_attachments = (
         db.query(
             func.count(DocumentAttachment.id)
+        )
+        .join(
+            Document,
+            DocumentAttachment.document_id == Document.id,
+        )
+        .filter(
+            Document.is_deleted == False,
+            document_scope,
         )
         .scalar()
         or 0
@@ -114,7 +166,8 @@ def get_dashboard_stats(
             )
             & (
                 Document.is_deleted == False
-            ),
+            )
+            & document_scope,
         )
 
         .group_by(
@@ -153,7 +206,8 @@ def get_dashboard_stats(
             )
             & (
                 Document.is_deleted == False
-            ),
+            )
+            & document_scope,
         )
 
         .group_by(
@@ -192,7 +246,8 @@ def get_dashboard_stats(
             )
             & (
                 Document.is_deleted == False
-            ),
+            )
+            & document_scope,
         )
 
         .group_by(
@@ -217,8 +272,13 @@ def get_dashboard_stats(
 
         db.query(Document)
 
+        .options(
+            selectinload(Document.encodeur),
+        )
+
         .filter(
-            Document.is_deleted == False
+            Document.is_deleted == False,
+            document_scope,
         )
 
         .order_by(
@@ -322,6 +382,14 @@ def get_dashboard_stats(
 
                 "circonscription_id":
                     document.circonscription_id,
+
+                "encodeur": (
+                    DocumentEncoderResponse.model_validate(
+                        document.encodeur
+                    ).model_dump()
+                    if document.encodeur is not None
+                    else None
+                ),
 
             }
 

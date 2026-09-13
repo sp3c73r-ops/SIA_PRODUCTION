@@ -16,10 +16,15 @@ class DocumentRepository:
         self,
         db: Session,
         document: Document,
+        commit: bool = True,
     ):
         db.add(document)
-        db.commit()
-        db.refresh(document)
+
+        if commit:
+            db.commit()
+            db.refresh(document)
+        else:
+            db.flush()
 
         return document
 
@@ -35,6 +40,7 @@ class DocumentRepository:
         query = (
             db.query(Document)
             .options(
+                selectinload(Document.encodeur),
                 selectinload(Document.custom_field_values)
                 .selectinload(DocumentFieldValue.document_field)
             )
@@ -71,6 +77,7 @@ class DocumentRepository:
         type_document_id: Optional[int] = None,
         phase_id: Optional[int] = None,
         circonscription_id: Optional[int] = None,
+        scope_circonscription_id: Optional[int] = None,
         date_debut=None,
         date_fin=None,
     ):
@@ -78,6 +85,7 @@ class DocumentRepository:
         query = (
             db.query(Document)
             .options(
+                selectinload(Document.encodeur),
                 selectinload(Document.custom_field_values)
                 .selectinload(DocumentFieldValue.document_field)
             )
@@ -163,6 +171,16 @@ class DocumentRepository:
             query = query.filter(
                 Document.circonscription_id
                 == circonscription_id
+            )
+
+        # --------------------------------------------------------
+        # SCOPE CIRCONSCRIPTION (ADMIN)
+        # --------------------------------------------------------
+
+        if scope_circonscription_id is not None:
+            query = query.filter(
+                Document.circonscription_id
+                == scope_circonscription_id
             )
 
         # --------------------------------------------------------

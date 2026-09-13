@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException
 from pydantic import ValidationError
+from fastapi.security import HTTPAuthorizationCredentials
 
 from app.models.user import USER_ROLE_ADMIN
 from app.models.user import USER_ROLE_USER
@@ -11,22 +12,35 @@ from app.schemas.user_schema import UserCreate
 from app.schemas.user_schema import UserPermissionCreate
 from app.services.user_service import user_service
 from app.security.authorization import has_bureau_access
+from app.security.dependencies import get_current_user
 
 
-def _user(user_id: int, role: str, permissions=None, bureau_id=None):
+def _user(
+    user_id: int,
+    role: str,
+    permissions=None,
+    bureau_id=None,
+    admin_circonscription_id=None,
+):
     return SimpleNamespace(
         id=user_id,
         role=role,
         permissions=permissions or [],
+        actif=True,
         bureau_id=bureau_id,
+        admin_circonscription_id=admin_circonscription_id,
     )
 
 
-def _db_with_bureau(exists: bool = True):
+def _db_with_bureau(exists: bool = True, circonscription_id: int = 1):
     db = MagicMock()
     query = MagicMock()
     query.filter.return_value.first.return_value = (
-        SimpleNamespace(id=2, code="BUREAU_2") if exists else None
+        SimpleNamespace(
+            id=2,
+            code="BUREAU_2",
+            circonscription_id=circonscription_id,
+        ) if exists else None
     )
     db.query.return_value = query
     return db
@@ -50,6 +64,143 @@ class TestUserAdminManagement(unittest.TestCase):
 
         self.assertEqual(result.id, 10)
         self.assertEqual(result.permissions, ["document.read"])
+
+    def test_admin_can_disable_user_in_own_circonscription(self):
+        admin = _user(
+            1,
+            USER_ROLE_ADMIN,
+            permissions=["user.disable"],
+            admin_circonscription_id=1,
+        )
+        target = _user(
+            10,
+            USER_ROLE_USER,
+            bureau_id=2,
+        )
+
+        with patch(
+            "app.services.user_service.user_repository.get_by_id",
+            return_value=target,
+        ), patch(
+            "app.services.user_service.user_repository.update",
+            return_value=target,
+        ) as mock_update:
+            result = user_service.disable(self.db, 10, admin)
+
+        self.assertFalse(result.actif)
+        mock_update.assert_called_once_with(self.db, target)
+
+    def test_admin_without_disable_permission_is_forbidden(self):
+        admin = _user(1, USER_ROLE_ADMIN, admin_circonscription_id=1)
+
+        with self.assertRaises(HTTPException) as ctx:
+            user_service.disable(self.db, 10, admin)
+
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_admin_cannot_disable_user_in_other_circonscription(self):
+        admin = _user(
+            1,
+            USER_ROLE_ADMIN,
+            permissions=["user.disable"],
+            admin_circonscription_id=1,
+        )
+        target = _user(10, USER_ROLE_USER, bureau_id=2)
+        db = _db_with_bureau(circonscription_id=2)
+
+        with patch(
+            "app.services.user_service.user_repository.get_by_id",
+            return_value=target,
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                user_service.disable(db, 10, admin)
+
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_admin_cannot_disable_admin(self):
+        admin = _user(
+            1,
+            USER_ROLE_ADMIN,
+            permissions=["user.disable"],
+            admin_circonscription_id=1,
+        )
+        target = _user(10, USER_ROLE_ADMIN, admin_circonscription_id=1)
+
+        with patch(
+            "app.services.user_service.user_repository.get_by_id",
+            return_value=target,
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                user_service.disable(self.db, 10, admin)
+
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_admin_cannot_disable_self(self):
+        admin = _user(
+            1,
+            USER_ROLE_ADMIN,
+            permissions=["user.disable"],
+            admin_circonscription_id=1,
+        )
+
+        with self.assertRaises(HTTPException) as ctx:
+            user_service.disable(self.db, 1, admin)
+
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_user_cannot_disable_user(self):
+        user = _user(
+            11,
+            USER_ROLE_USER,
+            permissions=["user.disable"],
+            bureau_id=1,
+        )
+
+        with self.assertRaises(HTTPException) as ctx:
+            user_service.disable(self.db, 10, user)
+
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_already_inactive_user_is_idempotent(self):
+        admin = _user(
+            1,
+            USER_ROLE_ADMIN,
+            permissions=["user.disable"],
+            admin_circonscription_id=1,
+        )
+        target = _user(10, USER_ROLE_USER, bureau_id=2)
+        target.actif = False
+
+        with patch(
+            "app.services.user_service.user_repository.get_by_id",
+            return_value=target,
+        ), patch(
+            "app.services.user_service.user_repository.update",
+        ) as mock_update:
+            result = user_service.disable(self.db, 10, admin)
+
+        self.assertFalse(result.actif)
+        mock_update.assert_not_called()
+
+    def test_inactive_user_is_rejected_by_authentication_dependency(self):
+        credentials = HTTPAuthorizationCredentials(
+            scheme="Bearer",
+            credentials="token",
+        )
+        inactive_user = _user(10, USER_ROLE_USER, bureau_id=2)
+        inactive_user.actif = False
+
+        with patch(
+            "app.security.dependencies.decode_access_token",
+            return_value={"sub": "inactive.user"},
+        ), patch(
+            "app.security.dependencies.auth_repository.get_by_username",
+            return_value=inactive_user,
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                get_current_user(credentials, self.db)
+
+        self.assertEqual(ctx.exception.status_code, 401)
 
     # A2. ADMIN peut attribuer une permission officielle.
     def test_admin_can_assign_official_permission(self):
@@ -245,6 +396,116 @@ class TestUserAdminManagement(unittest.TestCase):
             user_service.create_by_admin(self.db, payload, user)
 
         self.assertEqual(ctx.exception.status_code, 403)
+
+    # C13. Un ADMIN peut créer un USER dans sa propre circonscription.
+    def test_admin_can_create_user_in_own_circonscription(self):
+        admin = _user(
+            1,
+            USER_ROLE_ADMIN,
+            admin_circonscription_id=1,
+        )
+        payload = UserCreate(
+            nom="Test",
+            prenom="User",
+            username="user.gombe",
+            password="secret",
+            role=USER_ROLE_USER,
+            bureau_id=2,
+            permissions=[],
+        )
+        created_user = SimpleNamespace(id=12, bureau_id=2)
+
+        with patch(
+            "app.services.user_service.user_repository.get_by_username",
+            return_value=None,
+        ), patch(
+            "app.services.user_service.user_repository.create",
+            return_value=created_user,
+        ) as mock_create:
+            result = user_service.create_by_admin(self.db, payload, admin)
+
+        self.assertEqual(result.bureau_id, 2)
+        self.assertEqual(mock_create.call_args.args[1].bureau_id, 2)
+
+    # C14. Un ADMIN ne peut pas créer un USER hors de sa circonscription.
+    def test_admin_cannot_create_user_in_another_circonscription(self):
+        admin = _user(
+            1,
+            USER_ROLE_ADMIN,
+            admin_circonscription_id=1,
+        )
+        db = _db_with_bureau(circonscription_id=2)
+        payload = UserCreate(
+            nom="Test",
+            prenom="User",
+            username="user.hors.perimetre",
+            password="secret",
+            role=USER_ROLE_USER,
+            bureau_id=2,
+            permissions=[],
+        )
+
+        with patch(
+            "app.services.user_service.user_repository.get_by_username",
+            return_value=None,
+        ), self.assertRaises(HTTPException) as ctx:
+            user_service.create_by_admin(db, payload, admin)
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(
+            ctx.exception.detail,
+            "Le bureau sélectionné n'appartient pas à la circonscription de l'administrateur.",
+        )
+
+    # C15. Un ADMIN sans circonscription ne peut pas créer de USER.
+    def test_admin_without_circonscription_cannot_create_user(self):
+        admin = _user(1, USER_ROLE_ADMIN)
+        payload = UserCreate(
+            nom="Test",
+            prenom="User",
+            username="user.sans.perimetre",
+            password="secret",
+            role=USER_ROLE_USER,
+            bureau_id=2,
+            permissions=[],
+        )
+
+        with patch(
+            "app.services.user_service.user_repository.get_by_username",
+            return_value=None,
+        ), self.assertRaises(HTTPException) as ctx:
+            user_service.create_by_admin(self.db, payload, admin)
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(
+            ctx.exception.detail,
+            "L'administrateur doit être rattaché à une circonscription.",
+        )
+
+    # C16. La création d'un ADMIN sans bureau reste admise.
+    def test_admin_without_bureau_remains_allowed(self):
+        admin = _user(1, USER_ROLE_ADMIN, admin_circonscription_id=1)
+        payload = UserCreate(
+            nom="Admin",
+            prenom="Test",
+            username="admin.sans.bureau",
+            password="secret",
+            role=USER_ROLE_ADMIN,
+            bureau_id=None,
+            permissions=[],
+        )
+        created_user = SimpleNamespace(id=13, bureau_id=None)
+
+        with patch(
+            "app.services.user_service.user_repository.get_by_username",
+            return_value=None,
+        ), patch(
+            "app.services.user_service.user_repository.create",
+            return_value=created_user,
+        ):
+            result = user_service.create_by_admin(self.db, payload, admin)
+
+        self.assertIsNone(result.bureau_id)
 
     # D13. Les permissions existantes restent intactes après changement de bureau.
     def test_permissions_remain_intact_after_bureau_change(self):

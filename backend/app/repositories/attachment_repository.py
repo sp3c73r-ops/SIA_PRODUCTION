@@ -14,13 +14,16 @@ class AttachmentRepository:
         self,
         db: Session,
         attachment: DocumentAttachment,
+        commit: bool = True,
     ):
 
         db.add(attachment)
 
-        db.commit()
-
-        db.refresh(attachment)
+        if commit:
+            db.commit()
+            db.refresh(attachment)
+        else:
+            db.flush()
 
         return attachment
 

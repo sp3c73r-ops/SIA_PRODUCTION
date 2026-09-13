@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 
 import Layout from "./components/Layout";
+import RequireAuth from "./components/RequireAuth";
 
 import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
@@ -27,7 +28,9 @@ export default function RoutesApp() {
 
             {/* APPLICATION */}
 
-            <Route element={<Layout />}>
+            <Route element={<RequireAuth />}>
+
+                <Route element={<Layout />}>
 
                 <Route
                     path="/"
@@ -58,6 +61,8 @@ export default function RoutesApp() {
                     path="/parametres"
                     element={<Parametres />}
                 />
+
+                </Route>
 
             </Route>
 

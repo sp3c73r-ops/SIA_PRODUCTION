@@ -78,13 +78,27 @@ class PermissionRequestRepository:
         reviewed_at: datetime,
         expires_at: datetime,
     ):
-        request.status = PERMISSION_REQUEST_STATUS_APPROVED
-        request.reviewed_by = reviewed_by
-        request.reviewed_at = reviewed_at
-        request.expires_at = expires_at
+        updated_count = (
+            db.query(PermissionRequest)
+            .filter(PermissionRequest.id == request.id)
+            .filter(PermissionRequest.status == PERMISSION_REQUEST_STATUS_PENDING)
+            .update(
+                {
+                    PermissionRequest.status: PERMISSION_REQUEST_STATUS_APPROVED,
+                    PermissionRequest.reviewed_by: reviewed_by,
+                    PermissionRequest.reviewed_at: reviewed_at,
+                    PermissionRequest.expires_at: expires_at,
+                },
+                synchronize_session=False,
+            )
+        )
+
+        if updated_count != 1:
+            db.rollback()
+            return None
+
         db.commit()
-        db.refresh(request)
-        return request
+        return self.get_by_id(db, request.id)
 
     def reject(
         self,
@@ -93,13 +107,27 @@ class PermissionRequestRepository:
         reviewed_by: int,
         reviewed_at: datetime,
     ):
-        request.status = PERMISSION_REQUEST_STATUS_REJECTED
-        request.reviewed_by = reviewed_by
-        request.reviewed_at = reviewed_at
-        request.expires_at = None
+        updated_count = (
+            db.query(PermissionRequest)
+            .filter(PermissionRequest.id == request.id)
+            .filter(PermissionRequest.status == PERMISSION_REQUEST_STATUS_PENDING)
+            .update(
+                {
+                    PermissionRequest.status: PERMISSION_REQUEST_STATUS_REJECTED,
+                    PermissionRequest.reviewed_by: reviewed_by,
+                    PermissionRequest.reviewed_at: reviewed_at,
+                    PermissionRequest.expires_at: None,
+                },
+                synchronize_session=False,
+            )
+        )
+
+        if updated_count != 1:
+            db.rollback()
+            return None
+
         db.commit()
-        db.refresh(request)
-        return request
+        return self.get_by_id(db, request.id)
 
     def cancel(
         self,

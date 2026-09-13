@@ -13,7 +13,7 @@ from app.schemas.auth_schema import (
     TokenResponse,
 )
 
-from app.schemas.user_schema import UserResponse
+from app.schemas.user_schema import CurrentUserResponse
 
 from app.security.dependencies import get_current_user
 
@@ -52,9 +52,13 @@ def login(
 
 @router.get(
     "/me",
-    response_model=UserResponse,
+    response_model=CurrentUserResponse,
 )
 def get_me(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return current_user
+    return auth_service.get_current_user_profile(
+        db,
+        current_user,
+    )

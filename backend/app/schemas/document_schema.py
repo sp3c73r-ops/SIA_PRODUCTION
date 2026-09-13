@@ -4,6 +4,15 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class DocumentEncoderResponse(BaseModel):
+    id: int
+    nom: Optional[str] = None
+    prenom: Optional[str] = None
+    username: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class DocumentBase(BaseModel):
     reference_archive: str
     nom_document: str
@@ -41,6 +50,8 @@ class DocumentUpdate(BaseModel):
 
 class DocumentResponse(DocumentBase):
     id: int
+
+    encodeur: Optional[DocumentEncoderResponse] = None
 
     created_at: datetime
     updated_at: datetime
