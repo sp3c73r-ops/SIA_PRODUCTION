@@ -2516,15 +2516,13 @@ export default function Documents() {
                                                         📎
                                                     </button>
 
-                                                    {!isAdmin && (
+                                                    {isAdmin && (
                                                         <button
                                                             className="btn-action btn-delete"
                                                             title="Supprimer"
                                                             onClick={(event) => {
                                                                 event.stopPropagation();
-                                                                handleDelete(
-                                                                    document
-                                                                );
+                                                                handleDelete(document);
                                                             }}
                                                         >
                                                             🗑️

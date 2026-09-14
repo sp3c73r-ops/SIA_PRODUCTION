@@ -160,7 +160,7 @@ class TestDocumentRbac(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 403)
 
     # TEST 8
-    def test_user_bureau_1_document_delete_own_document_allowed(self):
+    def test_user_with_document_delete_cannot_delete_document(self):
         user = _user(11, USER_ROLE_USER, ["document.delete"], bureau_id=1)
 
         with patch(
@@ -170,26 +170,93 @@ class TestDocumentRbac(unittest.TestCase):
             "app.services.document_service.document_repository.delete",
             return_value=True,
         ) as mock_delete:
-            result = document_service.delete(self.db, 8, user)
+            with self.assertRaises(HTTPException) as ctx:
+                document_service.delete(self.db, 8, user)
 
-        self.assertTrue(result)
-        mock_get_by_id.assert_called_once_with(self.db, 8, bureau_id=1)
-        mock_delete.assert_called_once()
+        self.assertEqual(ctx.exception.status_code, 403)
+        mock_get_by_id.assert_not_called()
+        mock_delete.assert_not_called()
 
     # TEST 9
-    def test_user_bureau_1_document_delete_other_bureau_is_403(self):
-        user = _user(11, USER_ROLE_USER, ["document.delete"], bureau_id=1)
+    def test_user_without_document_delete_cannot_delete_document(self):
+        user = _user(11, USER_ROLE_USER, [], bureau_id=1)
 
         with patch(
             "app.services.document_service.document_repository.get_by_id",
-            side_effect=[None, _doc(9, 2)],
-        ):
+            return_value=_doc(9, 1),
+        ) as mock_get_by_id, patch(
+            "app.services.document_service.document_repository.delete",
+        ) as mock_delete:
             with self.assertRaises(HTTPException) as ctx:
                 document_service.delete(self.db, 9, user)
 
         self.assertEqual(ctx.exception.status_code, 403)
+        mock_get_by_id.assert_not_called()
+        mock_delete.assert_not_called()
 
     # TEST 10
+    def test_admin_can_delete_document_in_own_circonscription(self):
+        admin = _user(100, USER_ROLE_ADMIN, ["document.delete"], admin_circonscription_id=5)
+        target = _doc(10, 1)
+        bureau = SimpleNamespace(id=1, circonscription_id=5)
+
+        with patch(
+            "app.services.document_service.document_repository.get_by_id",
+            return_value=target,
+        ) as mock_get_by_id, patch(
+            "app.services.document_service.bureau_repository.get_by_id",
+            return_value=bureau,
+        ), patch(
+            "app.services.document_service.document_repository.delete",
+            side_effect=lambda _db, document: setattr(document, "is_deleted", True) or True,
+        ) as mock_delete:
+            result = document_service.delete(self.db, 10, admin)
+
+        self.assertTrue(result)
+        self.assertTrue(target.is_deleted)
+        mock_get_by_id.assert_called_once_with(self.db, 10)
+        mock_delete.assert_called_once_with(self.db, target)
+
+    def test_admin_from_other_circonscription_cannot_delete_document(self):
+        admin = _user(100, USER_ROLE_ADMIN, ["document.delete"], admin_circonscription_id=6)
+
+        with patch(
+            "app.services.document_service.document_repository.get_by_id",
+            return_value=_doc(10, 1),
+        ), patch(
+            "app.services.document_service.bureau_repository.get_by_id",
+            return_value=SimpleNamespace(id=1, circonscription_id=5),
+        ), patch(
+            "app.services.document_service.document_repository.delete",
+        ) as mock_delete:
+            with self.assertRaises(HTTPException) as ctx:
+                document_service.delete(self.db, 10, admin)
+
+        self.assertEqual(ctx.exception.status_code, 403)
+        mock_delete.assert_not_called()
+
+    def test_admin_delete_already_deleted_document_keeps_existing_behavior(self):
+        admin = _user(100, USER_ROLE_ADMIN, ["document.delete"], admin_circonscription_id=5)
+        target = _doc(10, 1)
+        target.is_deleted = True
+
+        with patch(
+            "app.services.document_service.document_repository.get_by_id",
+            return_value=target,
+        ), patch(
+            "app.services.document_service.bureau_repository.get_by_id",
+            return_value=SimpleNamespace(id=1, circonscription_id=5),
+        ), patch(
+            "app.services.document_service.document_repository.delete",
+            return_value=True,
+        ) as mock_delete:
+            result = document_service.delete(self.db, 10, admin)
+
+        self.assertTrue(result)
+        self.assertTrue(target.is_deleted)
+        mock_delete.assert_called_once_with(self.db, target)
+
+    # TEST 11
     def test_user_bureau_1_document_create_assigned_to_bureau_1(self):
         user = _user(11, USER_ROLE_USER, ["document.create"], bureau_id=1)
 

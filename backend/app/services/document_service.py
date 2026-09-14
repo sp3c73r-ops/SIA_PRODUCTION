@@ -29,7 +29,6 @@ from app.repositories.bureau_repository import (
 from app.security.authorization import has_effective_permission
 from app.security.authorization import is_admin
 from app.security.permissions import PERMISSION_DOCUMENT_CREATE
-from app.security.permissions import PERMISSION_DOCUMENT_DELETE
 from app.security.permissions import PERMISSION_DOCUMENT_READ
 from app.security.permissions import PERMISSION_DOCUMENT_UPDATE
 
@@ -801,37 +800,42 @@ class DocumentService:
         document_id: int,
         current_user: User,
     ):
+        if not is_admin(current_user):
+            raise HTTPException(
+                status_code=403,
+                detail="La suppression des documents est reservee a l'administrateur.",
+            )
 
-        scope_bureau_id = self._get_scope_bureau_id(
+        admin_circonscription_id = getattr(
             current_user,
+            "admin_circonscription_id",
+            None,
         )
-
-        self._ensure_permission(
-            db,
-            current_user,
-            PERMISSION_DOCUMENT_DELETE,
-            bureau_id=scope_bureau_id,
-            document_id=document_id,
-        )
+        if admin_circonscription_id is None:
+            raise HTTPException(
+                status_code=403,
+                detail="Acces refuse: circonscription non assignee.",
+            )
 
         document = document_repository.get_by_id(
             db,
             document_id,
-            bureau_id=scope_bureau_id,
         )
-
-        if not document:
-            if scope_bureau_id is not None:
-                existing_document = document_repository.get_by_id(
-                    db,
-                    document_id,
-                )
-                if existing_document is not None:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Acces interdit a ce document.",
-                    )
+        if document is None:
             return False
+
+        document_bureau = bureau_repository.get_by_id(
+            db,
+            document.bureau_id,
+        )
+        if (
+            document_bureau is None
+            or document_bureau.circonscription_id != admin_circonscription_id
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Acces interdit a ce document.",
+            )
 
         return document_repository.delete(
             db,
