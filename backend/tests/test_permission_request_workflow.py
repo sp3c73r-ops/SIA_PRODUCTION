@@ -19,6 +19,7 @@ from app.models.permission_request import PERMISSION_REQUEST_STATUS_PENDING
 from app.models.permission_request import PERMISSION_REQUEST_STATUS_REJECTED
 from app.models.user import USER_ROLE_ADMIN, USER_ROLE_USER, User
 from app.security.authorization import has_temporary_permission
+from app.security.authorization import has_effective_permission
 from app.services.permission_request_service import permission_request_service
 
 
@@ -257,6 +258,106 @@ class TestPermissionRequestWorkflow(unittest.TestCase):
 
         self.assertEqual(result.status, PERMISSION_REQUEST_STATUS_APPROVED)
         self.assertEqual(result.reviewed_by, 1)
+
+    def test_document_update_approval_creates_attachment_companion(self):
+        admin = _user(1, USER_ROLE_ADMIN, admin_circonscription_id=1)
+        pending = _request(101, 33, 2, "document.update", PERMISSION_REQUEST_STATUS_PENDING, document_id=8)
+        companion_calls = []
+
+        with patch.object(
+            permission_request_service,
+            "_get_scoped_request",
+            return_value=pending,
+        ), patch(
+            "app.services.permission_request_service.permission_request_repository.approve",
+            side_effect=lambda _db, request, reviewed_by, reviewed_at, expires_at, **kwargs: SimpleNamespace(
+                id=request.id,
+                user_id=request.user_id,
+                bureau_id=request.bureau_id,
+                permission=request.permission,
+                document_id=request.document_id,
+                reason=request.reason,
+                status=PERMISSION_REQUEST_STATUS_APPROVED,
+                reviewed_by=reviewed_by,
+                reviewed_at=reviewed_at,
+                expires_at=expires_at,
+            ),
+        ), patch(
+            "app.services.permission_request_service.permission_request_repository.create_approved_companion",
+            side_effect=lambda *args, **kwargs: companion_calls.append(kwargs),
+        ):
+            result = permission_request_service.approve(self.db, 101, 1, admin)
+
+        self.assertEqual(len(companion_calls), 1)
+        companion = companion_calls[0]
+        self.assertEqual(companion["permission"], "attachment.create")
+        self.assertEqual(companion["source_request"].document_id, result.document_id)
+        self.assertEqual(companion["expires_at"], result.expires_at)
+
+    def test_companion_creation_failure_rolls_back_approval(self):
+        admin = _user(1, USER_ROLE_ADMIN, admin_circonscription_id=1)
+        pending = _request(102, 33, 2, "document.update", PERMISSION_REQUEST_STATUS_PENDING, document_id=8)
+        self.db.rollback = MagicMock()
+
+        with patch.object(
+            permission_request_service,
+            "_get_scoped_request",
+            return_value=pending,
+        ), patch(
+            "app.services.permission_request_service.permission_request_repository.approve",
+            return_value=SimpleNamespace(
+                id=102,
+                user_id=33,
+                bureau_id=2,
+                permission="document.update",
+                document_id=8,
+                reason=None,
+                status=PERMISSION_REQUEST_STATUS_APPROVED,
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=1),
+            ),
+        ), patch(
+            "app.services.permission_request_service.permission_request_repository.create_approved_companion",
+            side_effect=RuntimeError("companion failure"),
+        ):
+            with self.assertRaises(RuntimeError):
+                permission_request_service.approve(self.db, 102, 1, admin)
+
+        self.assertTrue(self.db.rollback.called)
+
+    def test_update_and_attachment_permissions_share_effective_expiration_and_scope(self):
+        user = _user(103, USER_ROLE_USER, bureau_id=2)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=1)
+        requests = {
+            "document.update": _request(
+                1031, 103, 2, "document.update", PERMISSION_REQUEST_STATUS_APPROVED,
+                document_id=8, expires_at=expires_at,
+            ),
+            "attachment.create": _request(
+                1032, 103, 2, "attachment.create", PERMISSION_REQUEST_STATUS_APPROVED,
+                document_id=8, expires_at=expires_at,
+            ),
+        }
+
+        with patch(
+            "app.security.authorization.permission_request_repository.find_approved",
+            side_effect=lambda _db, permission, **kwargs: requests[permission],
+        ):
+            self.assertTrue(has_effective_permission(self.db, user, "document.update", document_id=8, bureau_id=2))
+            self.assertTrue(has_effective_permission(self.db, user, "attachment.create", document_id=8, bureau_id=2))
+            self.assertFalse(has_effective_permission(self.db, user, "attachment.create", document_id=9, bureau_id=2))
+
+        expired = expires_at - timedelta(minutes=2)
+        requests["document.update"].expires_at = expired
+        requests["attachment.create"].expires_at = expired
+
+        with patch(
+            "app.security.authorization.permission_request_repository.find_approved",
+            side_effect=lambda _db, permission, **kwargs: requests[permission],
+        ), patch(
+            "app.security.authorization.permission_request_repository.mark_expired",
+        ):
+            self.assertFalse(has_effective_permission(self.db, user, "document.update", document_id=8, bureau_id=2))
+            self.assertFalse(has_effective_permission(self.db, user, "attachment.create", document_id=8, bureau_id=2))
 
     # 13. ADMIN peut refuser.
     def test_admin_can_reject(self):

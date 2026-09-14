@@ -112,6 +112,30 @@ class PermissionRequestRepository:
             db.flush()
         return self.get_by_id(db, request.id)
 
+    def create_approved_companion(
+        self,
+        db: Session,
+        source_request: PermissionRequest,
+        permission: str,
+        reviewed_by: int,
+        reviewed_at: datetime,
+        expires_at: datetime,
+    ):
+        companion = PermissionRequest(
+            user_id=source_request.user_id,
+            bureau_id=source_request.bureau_id,
+            permission=permission,
+            document_id=source_request.document_id,
+            reason=getattr(source_request, "reason", None),
+            status=PERMISSION_REQUEST_STATUS_APPROVED,
+            reviewed_by=reviewed_by,
+            reviewed_at=reviewed_at,
+            expires_at=expires_at,
+        )
+        db.add(companion)
+        db.flush()
+        return companion
+
     def reject(
         self,
         db: Session,

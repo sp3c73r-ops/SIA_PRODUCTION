@@ -17,6 +17,7 @@ from app.repositories.bureau_repository import bureau_repository
 from app.repositories.document_repository import document_repository
 from app.repositories.permission_request_repository import permission_request_repository
 from app.security.authorization import is_admin
+from app.security.permissions import PERMISSION_ATTACHMENT_CREATE
 from app.security.permissions import is_known_permission
 from app.services.audit_log_service import audit_log_service
 from app.services.notification_service import notification_service
@@ -333,6 +334,16 @@ class PermissionRequestService:
                 raise HTTPException(
                     status_code=409,
                     detail="Cette demande a deja ete traitee.",
+                )
+
+            if result.permission == "document.update" and result.document_id is not None:
+                permission_request_repository.create_approved_companion(
+                    db,
+                    source_request=result,
+                    permission=PERMISSION_ATTACHMENT_CREATE,
+                    reviewed_by=current_user.id,
+                    reviewed_at=now,
+                    expires_at=expires_at,
                 )
 
             admin_circonscription_id = self._get_admin_circonscription_id(current_user)
