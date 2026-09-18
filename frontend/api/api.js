@@ -22,7 +22,7 @@ const isLoginRequest = (config) => {
 };
 
 const api = axios.create({
-    baseURL: "",
+    baseURL: import.meta.env.DEV ? "http://127.0.0.1:8001" : "",
 });
 
 api.interceptors.request.use(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../api/api";
 
 import {
@@ -20,6 +20,7 @@ import {
 } from "../services/attachmentService";
 
 import DocumentDetails from "../components/DocumentDetails";
+import AuthorizationTimer from "../components/AuthorizationTimer";
 
 import {
     createPermissionRequest,
@@ -82,6 +83,9 @@ export default function Documents() {
     const [selectedFiles, setSelectedFiles] =
         useState([]);
 
+    const [postEditFiles, setPostEditFiles] =
+        useState([]);
+
     // ============================================================
     // CONSULTATION DES PIECES JOINTES
     // ============================================================
@@ -127,6 +131,9 @@ export default function Documents() {
     // DEMANDE D'AUTORISATION DE MODIFICATION (USER)
     // ============================================================
 
+    const [myPermissionRequests, setMyPermissionRequests] =
+        useState([]);
+
     const [showAuthRequestModal, setShowAuthRequestModal] =
         useState(false);
 
@@ -135,6 +142,8 @@ export default function Documents() {
 
     const [sendingAuthRequest, setSendingAuthRequest] =
         useState(false);
+
+    const permissionRequestsLoadInFlightRef = useRef(false);
 
     // ============================================================
     // FORMULAIRE
@@ -304,13 +313,62 @@ export default function Documents() {
         }
     };
 
+    const loadMyPermissionRequests = async () => {
+        if (!currentUser || isAdmin) return;
+        if (permissionRequestsLoadInFlightRef.current) return;
+
+        permissionRequestsLoadInFlightRef.current = true;
+
+        try {
+            const response = await getMyPermissionRequests();
+            setMyPermissionRequests(response?.data || []);
+        } catch (err) {
+            console.error(
+                "Erreur chargement mes demandes d'autorisation :",
+                err
+            );
+        } finally {
+            permissionRequestsLoadInFlightRef.current = false;
+        }
+    };
+
     useEffect(() => {
 
         loadDocuments();
 
         loadReferences();
 
+        if (!isAdmin) {
+            loadMyPermissionRequests();
+        }
+
     }, []);
+
+    useEffect(() => {
+        if (isAdmin) return;
+
+        const handlePermissionUpdate = () => {
+            loadMyPermissionRequests();
+        };
+
+        window.addEventListener(
+            "permission-request-updated",
+            handlePermissionUpdate
+        );
+
+        const intervalId = setInterval(
+            loadMyPermissionRequests,
+            5000
+        );
+
+        return () => {
+            window.removeEventListener(
+                "permission-request-updated",
+                handlePermissionUpdate
+            );
+            clearInterval(intervalId);
+        };
+    }, [isAdmin]);
 
     // ============================================================
     // CHAMPS PERSONNALISES
@@ -645,6 +703,8 @@ export default function Documents() {
 
         setSelectedFiles([]);
 
+        setPostEditFiles([]);
+
         setCreatedDocument(null);
 
         setShowAttachmentStep(false);
@@ -656,6 +716,64 @@ export default function Documents() {
     // ============================================================
     // AUTORISATION DE MODIFICATION (USER)
     // ============================================================
+
+    const getActiveUpdatePermission = (documentId) => {
+        if (!currentUser || isAdmin || !documentId) return null;
+        const now = new Date();
+        const validRequests = myPermissionRequests.filter(
+            (req) =>
+                req.user_id === currentUser.id &&
+                req.document_id === documentId &&
+                req.permission === "document.update" &&
+                req.status === "APPROVED" &&
+                req.expires_at &&
+                new Date(req.expires_at) > now
+        );
+
+        if (validRequests.length === 0) return null;
+        validRequests.sort(
+            (a, b) => new Date(b.expires_at) - new Date(a.expires_at)
+        );
+        return validRequests[0];
+    };
+
+    const getPendingUpdatePermission = (documentId) => {
+        if (!currentUser || isAdmin || !documentId) return null;
+        return myPermissionRequests.find(
+            (req) =>
+                req.user_id === currentUser.id &&
+                req.document_id === documentId &&
+                req.permission === "document.update" &&
+                req.status === "PENDING"
+        );
+    };
+
+    const activeUpdateRequests = (!currentUser || isAdmin)
+        ? []
+        : (() => {
+              const now = new Date();
+              const mapByDoc = new Map();
+              myPermissionRequests.forEach((req) => {
+                  if (
+                      req.user_id === currentUser.id &&
+                      req.permission === "document.update" &&
+                      req.status === "APPROVED" &&
+                      req.expires_at &&
+                      new Date(req.expires_at) > now &&
+                      req.document_id
+                  ) {
+                      const existing = mapByDoc.get(req.document_id);
+                      if (
+                          !existing ||
+                          new Date(req.expires_at) >
+                              new Date(existing.expires_at)
+                      ) {
+                          mapByDoc.set(req.document_id, req);
+                      }
+                  }
+              });
+              return Array.from(mapByDoc.values());
+          })();
 
     const hasValidUpdateAuthorization = async (
         documentId
@@ -674,6 +792,8 @@ export default function Documents() {
 
             const requests =
                 response?.data || [];
+
+            setMyPermissionRequests(requests);
 
             const now = new Date();
 
@@ -769,6 +889,11 @@ export default function Documents() {
                 reason:
                     "Demande d'autorisation pour modifier le document",
             });
+
+            await loadMyPermissionRequests();
+            window.dispatchEvent(
+                new CustomEvent("permission-request-updated")
+            );
 
             setShowAuthRequestModal(false);
 
@@ -899,6 +1024,8 @@ export default function Documents() {
 
         setSelectedFiles([]);
 
+        setPostEditFiles([]);
+
         setShowAttachmentStep(false);
 
         setShowForm(true);
@@ -959,6 +1086,40 @@ export default function Documents() {
 
         setError("");
 
+    };
+
+    const handlePostEditFileChange = (e) => {
+
+        const files = Array.from(e.target.files || []);
+
+        if (files.length === 0) {
+            return;
+        }
+
+        setPostEditFiles((previous) => {
+            const existingKeys = new Set(
+                previous.map((file) =>
+                    `${file.name}-${file.size}-${file.lastModified}-${file.type}`
+                )
+            );
+
+            const uniqueNewFiles = files.filter((file) => {
+                const key =
+                    `${file.name}-${file.size}-${file.lastModified}-${file.type}`;
+
+                if (existingKeys.has(key)) {
+                    return false;
+                }
+
+                existingKeys.add(key);
+                return true;
+            });
+
+            return [...previous, ...uniqueNewFiles];
+        });
+
+        e.target.value = "";
+        setError("");
     };
 
     // ============================================================
@@ -1022,6 +1183,8 @@ export default function Documents() {
 
         setSelectedFiles([]);
 
+        setPostEditFiles([]);
+
         setCreatedDocument(null);
 
         setShowAttachmentStep(false);
@@ -1063,7 +1226,7 @@ export default function Documents() {
 
         }
 
-        if (selectedFiles.length === 0) {
+        if (postEditFiles.length === 0) {
 
             await finishCreation();
 
@@ -1081,7 +1244,7 @@ export default function Documents() {
 
             setError("");
 
-            for (const file of selectedFiles) {
+            for (const file of postEditFiles) {
 
                 await uploadAttachment(
                     createdDocument.id,
@@ -1331,57 +1494,33 @@ export default function Documents() {
     };
 
     // ============================================================
-    // SUPPRESSION DOCUMENT
+    // HELPERS
     // ============================================================
 
     const handleDelete = async (document) => {
-
-        const confirmed =
-            window.confirm(
-                `Voulez-vous vraiment supprimer "${document.nom_document}" ?`
-            );
+        const confirmed = window.confirm(
+            `Voulez-vous vraiment supprimer "${document.nom_document}" ?`
+        );
 
         if (!confirmed) {
-
             return;
-
         }
 
         try {
-
             setError("");
-
             setSuccess("");
 
-            await deleteDocument(
-                document.id
-            );
-
-            setSuccess(
-                "Document supprimé avec succès."
-            );
-
+            await deleteDocument(document.id);
+            setSuccess("Document supprimé avec succès.");
             await loadDocuments();
-
         } catch (err) {
-
-            console.error(
-                "Erreur suppression document :",
-                err
-            );
-
+            console.error("Erreur suppression document :", err);
             setError(
                 err.response?.data?.detail ||
                 "Impossible de supprimer le document."
             );
-
         }
-
     };
-
-    // ============================================================
-    // HELPERS
-    // ============================================================
 
     const getTypeName = (id) => {
 
@@ -1964,6 +2103,63 @@ export default function Documents() {
             </div>
 
             {/* ==================================================
+                AUTORISATIONS TEMPORAIRES ACTIVES (USER)
+            ================================================== */}
+
+            {!isAdmin && activeUpdateRequests.length > 0 && (
+                <div className="active-authorizations-section">
+                    {activeUpdateRequests.map((req) => {
+                        const targetDoc = documents.find(
+                            (d) => d.id === req.document_id
+                        );
+                        const docName =
+                            targetDoc?.nom_document ||
+                            `Document #${req.document_id}`;
+                        const docRef = targetDoc?.reference_archive || "";
+
+                        return (
+                            <div
+                                key={req.id}
+                                className="active-authorization-banner"
+                            >
+                                <div className="authorization-banner-left">
+                                    <span className="authorization-banner-badge-icon">
+                                        ⏱️
+                                    </span>
+                                    <div className="authorization-banner-text">
+                                        <strong>
+                                            Autorisation de modification active
+                                        </strong>
+                                        <p>
+                                            Document : <strong>{docName}</strong>{" "}
+                                            {docRef && `(${docRef})`}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="authorization-banner-right">
+                                    <AuthorizationTimer
+                                        expiresAt={req.expires_at}
+                                        onExpire={loadMyPermissionRequests}
+                                    />
+                                    {targetDoc && (
+                                        <button
+                                            type="button"
+                                            className="btn-primary btn-sm btn-edit-authorized"
+                                            onClick={() =>
+                                                handleEditRequest(targetDoc)
+                                            }
+                                        >
+                                            ✏️ Modifier le document
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ==================================================
                 TABLE
             ================================================== */}
 
@@ -2486,20 +2682,69 @@ export default function Documents() {
 
                                                 <div className="action-buttons">
 
-                                                    {!isAdmin && (
-                                                        <button
-                                                            className="btn-action btn-edit"
-                                                            title="Modifier"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                handleEditRequest(
-                                                                    document
-                                                                );
-                                                            }}
-                                                        >
-                                                            ✏️
-                                                        </button>
-                                                    )}
+                                                    {!isAdmin && (() => {
+                                                        const activePerm = getActiveUpdatePermission(document.id);
+                                                        const pendingPerm = getPendingUpdatePermission(document.id);
+
+                                                        if (activePerm) {
+                                                            return (
+                                                                <div className="table-authorized-action-wrapper">
+                                                                    <AuthorizationTimer
+                                                                        expiresAt={activePerm.expires_at}
+                                                                        compact
+                                                                        showLabel={false}
+                                                                        onExpire={loadMyPermissionRequests}
+                                                                    />
+                                                                    <button
+                                                                        className="btn-action btn-edit is-authorized"
+                                                                        title="Modifier le document (Autorisation active)"
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation();
+                                                                            handleEditRequest(document);
+                                                                        }}
+                                                                    >
+                                                                        ✏️
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        if (pendingPerm) {
+                                                            return (
+                                                                <div className="table-authorized-action-wrapper">
+                                                                    <span
+                                                                        className="badge-pending-request"
+                                                                        title="Demande d'autorisation en cours d'examen"
+                                                                    >
+                                                                        ⌛ En attente
+                                                                    </span>
+                                                                    <button
+                                                                        className="btn-action btn-edit is-pending"
+                                                                        title="Une demande d'autorisation est déjà en attente"
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation();
+                                                                            handleEditRequest(document);
+                                                                        }}
+                                                                    >
+                                                                        ✏️
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <button
+                                                                className="btn-action btn-edit"
+                                                                title="Demander l'autorisation de modification"
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    handleEditRequest(document);
+                                                                }}
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                        );
+                                                    })()}
 
                                                     {/* PIECES JOINTES */}
 
@@ -2574,6 +2819,17 @@ export default function Documents() {
                                     Renseignez les informations
                                     archivistiques.
                                 </p>
+
+                                {editingId && getActiveUpdatePermission(editingId) && (
+                                    <div className="modal-header-timer-badge">
+                                        <AuthorizationTimer
+                                            expiresAt={
+                                                getActiveUpdatePermission(editingId).expires_at
+                                            }
+                                            onExpire={loadMyPermissionRequests}
+                                        />
+                                    </div>
+                                )}
 
                             </div>
 
@@ -3268,7 +3524,7 @@ export default function Documents() {
                                     multiple
                                     accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.doc,.docx"
                                     onChange={
-                                        handleFileChange
+                                        handlePostEditFileChange
                                     }
                                     disabled={
                                         uploading
@@ -3291,7 +3547,7 @@ export default function Documents() {
                                     Choisir un fichier
                                 </label>
 
-                                {selectedFiles.length > 0 && (
+                                {postEditFiles.length > 0 && (
 
                                     <div
                                         style={{
@@ -3303,7 +3559,7 @@ export default function Documents() {
                                         }}
                                     >
 
-                                        {selectedFiles.map((file) => (
+                                        {postEditFiles.map((file) => (
 
                                             <div
                                                 key={`${file.name}-${file.size}-${file.lastModified}-${file.type}`}
@@ -3377,7 +3633,7 @@ export default function Documents() {
 
                                         ? "Envoi du fichier..."
 
-                                        : selectedFiles.length > 0
+                                        : postEditFiles.length > 0
 
                                             ? "Ajouter et terminer"
 

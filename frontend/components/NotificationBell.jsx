@@ -28,9 +28,10 @@ export default function NotificationBell() {
     const [reviewRequestId, setReviewRequestId] = useState(null);
 
     const bellRef = useRef(null);
+    const countRequestInFlightRef = useRef(false);
 
     // ============================================================
-    // RAFRAÎCHISSEMENT PÉRIODIQUE DU COMPTEUR (POLLING 30s)
+    // RAFRAÎCHISSEMENT PÉRIODIQUE DU COMPTEUR (POLLING 5s)
     // ============================================================
     useEffect(() => {
         if (!currentUser) {
@@ -43,6 +44,12 @@ export default function NotificationBell() {
         let isMounted = true;
 
         const fetchCount = async () => {
+            if (countRequestInFlightRef.current) {
+                return;
+            }
+
+            countRequestInFlightRef.current = true;
+
             try {
                 const data = await getUnreadCount();
                 if (isMounted && typeof data?.unread_count === "number") {
@@ -53,12 +60,14 @@ export default function NotificationBell() {
                 if (err?.response?.status === 403) {
                     // Utilisateur sans permission notification.read
                 }
+            } finally {
+                countRequestInFlightRef.current = false;
             }
         };
 
         fetchCount();
 
-        const intervalId = setInterval(fetchCount, 30000);
+        const intervalId = setInterval(fetchCount, 5000);
 
         return () => {
             isMounted = false;
@@ -157,7 +166,7 @@ export default function NotificationBell() {
     };
 
     // ============================================================
-    // CLIC SUR UNE NOTIFICATION (MARQUER LUE + REVISION SI PERMISSION_REQUEST)
+    // CLIC SUR UNE NOTIFICATION (MARQUER LUE + REVISION OU RAFRAICHISSEMENT)
     // ============================================================
     const handleNotificationClick = (notif) => {
         if (!notif.read_at) {
@@ -167,6 +176,11 @@ export default function NotificationBell() {
         if (notif.permission_request_id && currentUser?.role === "ADMIN") {
             setIsOpen(false);
             setReviewRequestId(notif.permission_request_id);
+        }
+
+        // Si la notification concerne une demande d'autorisation (ex: approved/rejected)
+        if (notif.permission_request_id || notif.action?.startsWith("permission_request.")) {
+            window.dispatchEvent(new CustomEvent("permission-request-updated"));
         }
     };
 
@@ -370,6 +384,7 @@ export default function NotificationBell() {
                     onClose={() => setReviewRequestId(null)}
                     onSuccess={() => {
                         fetchNotifications();
+                        window.dispatchEvent(new CustomEvent("permission-request-updated"));
                     }}
                 />
             )}
